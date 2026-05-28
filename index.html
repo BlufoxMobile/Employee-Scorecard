@@ -255,12 +255,14 @@
     letter-spacing: .8px;
     color: var(--bf-text-soft);
   }
-  .sc-kv { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px; }
-  .sc-kv .k { color: var(--bf-text-soft); }
-  .sc-kv .v { font-weight: 600; }
+  .sc-kv { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 4px 0; font-size: 14px; }
+  .sc-kv .k { color: var(--bf-text-soft); flex: 1 1 auto; }
+  .sc-kv .v { font-weight: 600; text-align: right; flex: 0 0 auto; max-width: 60%; }
 
   .metric-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  .metric-table th, .metric-table td { text-align: left; padding: 9px 8px; border-bottom: 1px solid #eaf0fa; }
+  .metric-table th, .metric-table td { padding: 10px 12px; border-bottom: 1px solid #eaf0fa; vertical-align: middle; }
+  .metric-table th { text-align: left; }
+  .metric-table th.num, .metric-table td.num { text-align: center; }
   .metric-table th {
     background: #f1f6fd;
     color: var(--bf-text-soft);
@@ -269,7 +271,8 @@
     font-size: 11px;
     letter-spacing: .6px;
   }
-  .metric-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .metric-table td.num { font-variant-numeric: tabular-nums; }
+  .rank-num { font-weight: 600; margin-bottom: 4px; line-height: 1.2; }
   .rank-pill {
     display: inline-block;
     padding: 2px 9px;
@@ -492,7 +495,6 @@
 
       <div class="sc-card">
         <h3>Goal Tracking (Month-to-Date)</h3>
-        <div id="scGoalContext" style="font-size:13px; color:var(--bf-text-soft); margin-bottom:8px;"></div>
         <table class="metric-table">
           <thead>
             <tr>
@@ -508,15 +510,13 @@
       </div>
 
       <div class="sc-card">
-        <h3>National Ranking — How Close to the Top</h3>
+        <h3>National Ranking — How Close to #1</h3>
         <table class="metric-table">
           <thead>
             <tr>
               <th>Category</th>
-              <th class="num">Your #</th>
-              <th class="num">Top Performer</th>
-              <th class="num">% of Top</th>
-              <th>Your Rank</th>
+              <th class="num">Your Rank</th>
+              <th class="num">Store Rank</th>
             </tr>
           </thead>
           <tbody id="scRankRows"></tbody>
@@ -624,11 +624,21 @@ function fmtHire(v) {
   if (isNaN(d.getTime()) || d.getFullYear() < 1990) return '—';
   return d.toLocaleDateString();
 }
-// Positive-framed rank label — never call anyone "bottom". Tells the manager
-// at a glance where this rep sits and what to coach toward.
-function rankLabel(rank, total) {
-  if (!rank || !total) return { cls: 'rank-mid', label: '—' };
-  const pct = rank / total;
+// Sales report uses "higher rank value = better" (Rayan Abidali = GP Rank 1101
+// with the highest GP). For employees the standard "#1 = best" convention is
+// expected — so we flip raw ranks for display.
+//   displayRank = total - rawRank + 1
+function invertRank(rawRank, total) {
+  if (rawRank == null || !total) return null;
+  const n = Number(rawRank);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.max(1, total - n + 1);
+}
+
+// Positive-framed rank label, expects DISPLAY rank (1=best).
+function rankLabel(displayRank, total) {
+  if (!displayRank || !total) return { cls: 'rank-mid', label: '—' };
+  const pct = displayRank / total;
   if (pct <= 0.10) return { cls: 'rank-top',    label: 'Top Performer' };
   if (pct <= 0.25) return { cls: 'rank-strong', label: 'Strong' };
   if (pct <= 0.50) return { cls: 'rank-mid',    label: 'Above Middle' };
@@ -712,6 +722,7 @@ function parseSalesReport(buf) {
   const cHire   = pick('Hire Date');
   const cNewRGU = pick('New RGU');
   const cTotalScore = pick('Total Score');
+  const cMPMix  = pick('Mobile Plus Mix (%) 5 Pts', 'Mobile Plus Mix (%)'); // actual Mobile Plus mix %
   const cGPRank   = pick('GP Rank');
   const cMobRank  = pick('Mobile Prod Rank');
   const cAccRank  = pick('Accessory Rank');
@@ -745,6 +756,9 @@ function parseSalesReport(buf) {
       hireDate: row[cHire] ?? null,
       newRGU: row[cNewRGU] ?? 0,
       totalScore: row[cTotalScore] ?? null,
+      mpMix: row[cMPMix] ?? null,
+      // Raw ranks from sales report. Convention: HIGHER number = BETTER (Rayan
+      // Abidali has GP Rank 1101 with the highest GP). Display flips this.
       gpRank: row[cGPRank] ?? null,
       mobRank: row[cMobRank] ?? null,
       accRank: row[cAccRank] ?? null,
@@ -761,6 +775,37 @@ function parseSalesReport(buf) {
   reps.forEach(r => {
     if (!r.location) return;
     (STATE.repsByStore[r.location] = STATE.repsByStore[r.location] || []).push(r);
+  });
+
+  // === STORE-LEVEL category ranks ===
+  // For each metric, aggregate per store (per-rep average is fairer than sum
+  // across stores with very different headcounts) and rank stores 1=best.
+  // Result: STATE.storeRanks[storeShort][metricKey] = { rank, total }
+  const storeMetricKeys = [
+    { key: 'gp',        getter: r => r.gp },
+    { key: 'gpPerHr',   getter: r => r.gpPerHr },
+    { key: 'mobile',    getter: r => r.grossMobileSalesMTD },
+    { key: 'rgu',       getter: r => r.newRGU },
+    { key: 'hsi',       getter: r => r.hsi },
+    { key: 'tablets',   getter: r => r.tabletMTD },
+    { key: 'watches',   getter: r => r.watchesMTD },
+    { key: 'accDollars',getter: r => r.accessoryDollars },
+    { key: 'accPerBox', getter: r => r.accessoryPerBox },
+    { key: 'mpMix',     getter: r => r.mpMix },
+  ];
+  STATE.storeRanks = {};
+  const allStores = Object.keys(STATE.repsByStore);
+  storeMetricKeys.forEach(m => {
+    const storeAvgs = allStores.map(s => {
+      const vals = STATE.repsByStore[s].map(m.getter).filter(v => v != null && typeof v === 'number' && !isNaN(v));
+      const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+      return { store: s, avg };
+    }).filter(x => x.avg != null);
+    storeAvgs.sort((a, b) => b.avg - a.avg);  // descending → rank 1 = best
+    const total = storeAvgs.length;
+    storeAvgs.forEach((x, i) => {
+      (STATE.storeRanks[x.store] = STATE.storeRanks[x.store] || {})[m.key] = { rank: i + 1, total, value: x.avg };
+    });
   });
 
   // Build store-level NPS index. The "Fiscal NPS" column on Rep Rank is the
@@ -947,12 +992,14 @@ const RANK_CATEGORIES = [
 
 function autoFillCoaching(rep) {
   const total = STATE.reps.length;
+  // Use inverted (display) ranks so 1 = best. Lowest-numbered ranks = strengths.
   const cats = RANK_CATEGORIES
     .filter(c => rep[c.key] != null && rep[c.key] > 0)
-    .map(c => ({ ...c, rank: rep[c.key], pct: rep[c.key] / total }));
-  cats.sort((a,b) => a.rank - b.rank);
-  const strengths = cats.slice(0, 2).map(c => `• ${c.label} — ranked #${c.rank} of ${total}`).join('\n');
-  const areas = cats.slice(-2).reverse().map(c => `• ${c.label} — ranked #${c.rank} of ${total} (room to grow)`).join('\n');
+    .map(c => ({ ...c, displayRank: invertRank(rep[c.key], total) }))
+    .filter(c => c.displayRank != null);
+  cats.sort((a,b) => a.displayRank - b.displayRank);
+  const strengths = cats.slice(0, 2).map(c => `• ${c.label} — ranked #${c.displayRank} of ${total}`).join('\n');
+  const areas = cats.slice(-2).reverse().map(c => `• ${c.label} — ranked #${c.displayRank} of ${total} (room to grow)`).join('\n');
   if ($('strengths').value === '') $('strengths').value = strengths;
   if ($('areas').value === '')     $('areas').value = areas;
 }
@@ -1025,17 +1072,13 @@ function onGenerate() {
   const goals = computeGoals(rep);
   const tshActual = Number($('empTSheets').value) || 0;
   const goalRows = [
-    { label: 'XM (Mobile) — 7% of traffic',     goal: goals.xm,     actual: Number(rep.grossMobileSalesMTD) || 0, fmt: 'num' },
-    { label: 'Watches + Tablets — 2% of traffic', goal: goals.watTab, actual: (Number(rep.watchesMTD)||0) + (Number(rep.tabletMTD)||0), fmt: 'num' },
-    { label: 'T-Sheets — 20% of traffic',         goal: goals.tsheet, actual: tshActual, fmt: 'num', actualNote: 'manual' },
-    { label: 'RGUs — 10% of traffic',             goal: goals.rgu,    actual: Number(rep.newRGU) || 0, fmt: 'num' },
-    { label: 'Accessories — $30 × XM sold',       goal: goals.accessoryDollars, actual: Number(rep.accessoryDollars) || 0, fmt: 'money' },
+    { label: 'XM (Mobile)',         goal: goals.xm,     actual: Number(rep.grossMobileSalesMTD) || 0, fmt: 'num' },
+    { label: 'Watches + Tablets',   goal: goals.watTab, actual: (Number(rep.watchesMTD)||0) + (Number(rep.tabletMTD)||0), fmt: 'num' },
+    { label: 'T-Sheets',            goal: goals.tsheet, actual: tshActual, fmt: 'num' },
+    { label: 'RGUs',                goal: goals.rgu,    actual: Number(rep.newRGU) || 0, fmt: 'num' },
+    { label: 'Accessories',         goal: goals.accessoryDollars, actual: Number(rep.accessoryDollars) || 0, fmt: 'money' },
   ];
   STATE.goalsForReport = goalRows;
-
-  $('scGoalContext').innerHTML = goals.storeTraffic
-    ? `Store MTD traffic: <b>${fmtNum(goals.storeTraffic)}</b> · ÷ <b>${goals.storeHeadcount}</b> reps = <b>${fmtNum(goals.perEmpTraffic, 0)}</b> traffic per rep`
-    : 'Store traffic unavailable — goals cannot be calculated.';
 
   const goalTbody = $('scGoalRows');
   goalTbody.innerHTML = '';
@@ -1044,12 +1087,11 @@ function onGenerate() {
     const actFmt  = r.fmt === 'money' ? fmtMoney(r.actual) : fmtNum(r.actual, 0);
     const toGoal = fmtToGoal(r.actual, r.goal);
     const gap = fmtGap(r.actual, r.goal, r.fmt === 'money');
-    const note = r.actualNote ? `<span style="color:#999;font-size:11px;"> (${r.actualNote})</span>` : '';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${r.label}</td>
       <td class="num">${goalFmt}</td>
-      <td class="num">${actFmt}${note}</td>
+      <td class="num">${actFmt}</td>
       <td class="num ${toGoal.cls}">${toGoal.text}</td>
       <td class="num ${gap.cls}">${gap.text}</td>
     `;
@@ -1057,19 +1099,23 @@ function onGenerate() {
   });
 
   // ---------- National Ranking table ----------
+  // Two rank columns — employee's national rank + their store's national rank,
+  // both using the natural "#1 = best" convention. Side-by-side answers
+  // "is this employee dragging the store down or lifting it up?"
   const rankRows = buildRankingRows(rep);
   STATE.rankingForReport = rankRows;
   const rankTbody = $('scRankRows');
   rankTbody.innerHTML = '';
   rankRows.forEach(r => {
-    const bucket = rankLabel(r.rank, total);
+    const repBucket   = rankLabel(r.repRank,   r.repTotal);
+    const storeBucket = rankLabel(r.storeRank, r.storeTotal);
+    const repCell   = r.repRank   ? `<div class="rank-num">#${r.repRank} of ${r.repTotal}</div><span class="rank-pill ${repBucket.cls}">${repBucket.label}</span>` : '—';
+    const storeCell = r.storeRank ? `<div class="rank-num">#${r.storeRank} of ${r.storeTotal}</div><span class="rank-pill ${storeBucket.cls}">${storeBucket.label}</span>` : '—';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${r.label}</td>
-      <td class="num">${r.you}</td>
-      <td class="num">${r.top}</td>
-      <td class="num">${r.pctOfTop != null ? r.pctOfTop.toFixed(0) + '%' : '—'}</td>
-      <td>${r.rank ? `#${r.rank} of ${total} ` : '—'}<span class="rank-pill ${bucket.cls}">${bucket.label}</span></td>
+      <td class="num">${repCell}</td>
+      <td class="num">${storeCell}</td>
     `;
     rankTbody.appendChild(tr);
   });
@@ -1113,15 +1159,16 @@ function onGenerate() {
   areasTags.innerHTML = '';
   const cats = RANK_CATEGORIES
     .filter(c => rep[c.key] != null && rep[c.key] > 0)
-    .map(c => ({ ...c, rank: rep[c.key] }))
-    .sort((a,b) => a.rank - b.rank);
+    .map(c => ({ ...c, displayRank: invertRank(rep[c.key], total) }))
+    .filter(c => c.displayRank != null)
+    .sort((a,b) => a.displayRank - b.displayRank);
   cats.slice(0, 3).forEach(c => {
     const s = document.createElement('span'); s.className = 'tag';
-    s.textContent = `${c.label} · #${c.rank}`; strengthsTags.appendChild(s);
+    s.textContent = `${c.label} · #${c.displayRank}`; strengthsTags.appendChild(s);
   });
   cats.slice(-3).reverse().forEach(c => {
     const s = document.createElement('span'); s.className = 'tag';
-    s.textContent = `${c.label} · #${c.rank}`; areasTags.appendChild(s);
+    s.textContent = `${c.label} · #${c.displayRank}`; areasTags.appendChild(s);
   });
 
   $('scStrengthsText').textContent = $('strengths').value || '';
@@ -1143,34 +1190,30 @@ function onGenerate() {
   $('scorecard').scrollIntoView({ behavior: 'smooth' });
 }
 
-// National ranking rows answer "how close to the best performer am I?"
-// — show actual number, top performer's number, % of top, and rank.
+// National ranking rows — both rep and store ranks shown side by side, both
+// using the standard "#1 = best" convention. Rep ranks come from the sales
+// report (inverted from the higher=better raw convention). Store ranks are
+// computed client-side from store-level averages.
 function buildRankingRows(rep) {
+  const total = STATE.reps.length;
+  const short = stripXfinity(STATE.selectedStore || '');
+  const sr = STATE.storeRanks[short] || {};
+
   const list = [
-    { label: 'Gross Profit ($)',         getter: r => r.gp,                  fmt: fmtMoney,             rankKey: 'gpRank' },
-    { label: 'GP per Hour',              getter: r => r.gpPerHr,             fmt: fmtMoney,             rankKey: 'gpHrRank' },
-    { label: 'Mobile Productivity (XM)', getter: r => r.grossMobileSalesMTD, fmt: (n) => fmtNum(n),     rankKey: 'mobRank' },
-    { label: 'New RGUs',                 getter: r => r.newRGU,              fmt: (n) => fmtNum(n),     rankKey: null },
-    { label: 'Internet (HSI)',           getter: r => r.hsi,                 fmt: (n) => fmtNum(n),     rankKey: null },
-    { label: 'Tablets',                  getter: r => r.tabletMTD,           fmt: (n) => fmtNum(n),     rankKey: null },
-    { label: 'Watches',                  getter: r => r.watchesMTD,          fmt: (n) => fmtNum(n),     rankKey: null },
-    { label: 'Accessory Dollars',        getter: r => r.accessoryDollars,    fmt: fmtMoney,             rankKey: 'accRank' },
-    { label: 'Accessory $ / Box',        getter: r => r.accessoryPerBox,     fmt: fmtMoney,             rankKey: null },
-    { label: 'Mobile Plus Mix',          getter: r => r.mpRank ? rep.mpRank : null, fmt: (n) => fmtNum(n), rankKey: 'mpRank', skipYou: true },
+    { label: 'Gross Profit',         repRankKey: 'gpRank',   storeKey: 'gp' },
+    { label: 'GP per Hour',          repRankKey: 'gpHrRank', storeKey: 'gpPerHr' },
+    { label: 'Mobile Productivity',  repRankKey: 'mobRank',  storeKey: 'mobile' },
+    { label: 'Accessory Dollars',    repRankKey: 'accRank',  storeKey: 'accDollars' },
+    { label: 'Mobile Plus Mix',      repRankKey: 'mpRank',   storeKey: 'mpMix' },
   ];
 
-  return list.map(m => {
-    const stats = companyStatsForMetric(m.getter);
-    const you = m.getter(rep);
-    const pctOfTop = (you != null && stats.max && stats.max !== 0) ? (Number(you) / Number(stats.max)) * 100 : null;
-    return {
-      label: m.label,
-      you: m.skipYou ? '—' : (you == null ? '—' : m.fmt(you)),
-      top: stats.max == null ? '—' : m.fmt(stats.max),
-      pctOfTop: m.skipYou ? null : pctOfTop,
-      rank: m.rankKey ? rep[m.rankKey] : null,
-    };
-  }).filter(r => r.you !== '—' || r.rank); // drop totally empty rows
+  return list.map(m => ({
+    label: m.label,
+    repRank:   invertRank(rep[m.repRankKey], total),
+    repTotal:  total,
+    storeRank: sr[m.storeKey] ? sr[m.storeKey].rank  : null,
+    storeTotal:sr[m.storeKey] ? sr[m.storeKey].total : null,
+  }));
 }
 
 /* ---------- PDF generation ---------- */
@@ -1220,23 +1263,31 @@ function buildEmailHTML(rep, grade) {
     const color   = toGoal.cls === 'goal-hit' ? '#136c3f' : (toGoal.cls === 'goal-close' ? '#8a5a00' : '#993300');
     return `<tr>
       <td style="padding:8px;border-bottom:1px solid #eee;">${r.label}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">${goalFmt}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">${actFmt}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;color:${color};font-weight:700;">${toGoal.text}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">${gap.text}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${goalFmt}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${actFmt}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;color:${color};font-weight:700;">${toGoal.text}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${gap.text}</td>
     </tr>`;
   }).join('');
 
+  const pillStyle = (cls) => {
+    const bg = ({ 'rank-top':'#d6f6e3','rank-strong':'#dceffd','rank-mid':'#fff3d6','rank-low':'#ffe1d6','rank-bottom':'#ffd6d6' })[cls] || '#eee';
+    const fg = ({ 'rank-top':'#136c3f','rank-strong':'#134f7d','rank-mid':'#8a5a00','rank-low':'#993300','rank-bottom':'#8a1a1a' })[cls] || '#333';
+    return `display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:${bg};color:${fg};`;
+  };
   const rankRowsHtml = ranks.map(r => {
-    const bucket = rankLabel(r.rank, total);
-    const bg = ({ 'rank-top':'#d6f6e3','rank-strong':'#dceffd','rank-mid':'#fff3d6','rank-low':'#ffe1d6','rank-bottom':'#ffd6d6' })[bucket.cls] || '#eee';
-    const fg = ({ 'rank-top':'#136c3f','rank-strong':'#134f7d','rank-mid':'#8a5a00','rank-low':'#993300','rank-bottom':'#8a1a1a' })[bucket.cls] || '#333';
+    const rb = rankLabel(r.repRank, r.repTotal);
+    const sb = rankLabel(r.storeRank, r.storeTotal);
+    const repCell = r.repRank
+      ? `<div style="font-weight:600;">#${r.repRank} of ${r.repTotal}</div><span style="${pillStyle(rb.cls)}">${rb.label}</span>`
+      : '—';
+    const storeCell = r.storeRank
+      ? `<div style="font-weight:600;">#${r.storeRank} of ${r.storeTotal}</div><span style="${pillStyle(sb.cls)}">${sb.label}</span>`
+      : '—';
     return `<tr>
-      <td style="padding:8px;border-bottom:1px solid #eee;">${r.label}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">${r.you}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;color:#555;">${r.top}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">${r.pctOfTop != null ? r.pctOfTop.toFixed(0) + '%' : '—'}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;">${r.rank ? '#' + r.rank + ' of ' + total : '—'} <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:${bg};color:${fg};">${bucket.label}</span></td>
+      <td style="padding:10px 8px;border-bottom:1px solid #eee;">${r.label}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:center;">${repCell}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:center;">${storeCell}</td>
     </tr>`;
   }).join('');
 
@@ -1272,29 +1323,26 @@ function buildEmailHTML(rep, grade) {
       </p>
 
       <h3 style="color:#0a2a52;margin-top:18px;">Goal Tracking (Month-to-Date)</h3>
-      <p style="font-size:12px;color:#486490;margin:4px 0 8px;">Store MTD traffic ${fmtNum((STATE.shoppertrack[short] || {}).mtdTraffic)} · ÷ ${($('numEmployees').value || '?')} reps</p>
       <table style="width:100%; border-collapse:collapse; font-size:14px;">
         <thead>
-          <tr style="background:#f1f6fd; text-align:left;">
-            <th style="padding:8px;">Category</th>
-            <th style="padding:8px; text-align:right;">Goal</th>
-            <th style="padding:8px; text-align:right;">Actual</th>
-            <th style="padding:8px; text-align:right;">% to Goal</th>
-            <th style="padding:8px; text-align:right;">Gap</th>
+          <tr style="background:#f1f6fd;">
+            <th style="padding:8px; text-align:left;">Category</th>
+            <th style="padding:8px; text-align:center;">Goal</th>
+            <th style="padding:8px; text-align:center;">Actual</th>
+            <th style="padding:8px; text-align:center;">% to Goal</th>
+            <th style="padding:8px; text-align:center;">Gap</th>
           </tr>
         </thead>
         <tbody>${goalRowsHtml}</tbody>
       </table>
 
-      <h3 style="color:#0a2a52;margin-top:20px;">National Ranking — How Close to the Top</h3>
+      <h3 style="color:#0a2a52;margin-top:20px;">National Ranking — How Close to #1</h3>
       <table style="width:100%; border-collapse:collapse; font-size:14px;">
         <thead>
-          <tr style="background:#f1f6fd; text-align:left;">
-            <th style="padding:8px;">Category</th>
-            <th style="padding:8px; text-align:right;">Your #</th>
-            <th style="padding:8px; text-align:right;">Top Performer</th>
-            <th style="padding:8px; text-align:right;">% of Top</th>
-            <th style="padding:8px;">Your Rank</th>
+          <tr style="background:#f1f6fd;">
+            <th style="padding:8px; text-align:left;">Category</th>
+            <th style="padding:8px; text-align:center;">Your Rank</th>
+            <th style="padding:8px; text-align:center;">Store Rank</th>
           </tr>
         </thead>
         <tbody>${rankRowsHtml}</tbody>
@@ -1403,7 +1451,9 @@ async function onSubmit() {
         store_mtd_traffic: (STATE.shoppertrack[stripXfinity(STATE.selectedStore)] || {}).mtdTraffic,
         store_headcount: $('numEmployees').value,
       },
-      category_ranks: {
+      // Both raw (sales-report higher=better) and display (#1=best) ranks for
+      // each category, plus the store's national rank in that category.
+      category_ranks_raw: {
         gp_rank: rep.gpRank,
         mobile_prod_rank: rep.mobRank,
         accessory_rank: rep.accRank,
@@ -1411,6 +1461,15 @@ async function onSubmit() {
         nps_rank: rep.npsRank,
         mobile_plus_rank: rep.mpRank,
       },
+      category_ranks_display: {
+        gp_rank: invertRank(rep.gpRank, total),
+        mobile_prod_rank: invertRank(rep.mobRank, total),
+        accessory_rank: invertRank(rep.accRank, total),
+        gp_hr_rank: invertRank(rep.gpHrRank, total),
+        mobile_plus_rank: invertRank(rep.mpRank, total),
+        of_total: total,
+      },
+      store_category_ranks: STATE.storeRanks[stripXfinity(STATE.selectedStore)] || {},
 
       // Coaching
       strengths: $('strengths').value,
