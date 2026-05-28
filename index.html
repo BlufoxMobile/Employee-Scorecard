@@ -1226,11 +1226,9 @@ async function makePDF() {
     html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
     jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' }
   };
-  // Render once, then extract both blob + base64 from the same jsPDF object.
   const pdf = await html2pdf().set(opt).from(el).toPdf().get('pdf');
   const blob = pdf.output('blob');
-  const dataUri = pdf.output('datauristring'); // "data:application/pdf;base64,..."
-  return { blob, dataUri, filename: opt.filename };
+  return { blob, filename: opt.filename };
 }
 
 async function onDownloadPDF() {
@@ -1245,6 +1243,23 @@ async function onDownloadPDF() {
   } finally {
     btn.disabled = false; btn.textContent = '⬇️ Download PDF';
   }
+}
+
+// === Zapier submit helper ===
+// We deliberately use multipart/form-data (built by FormData) instead of
+// application/json. JSON triggers a CORS preflight (OPTIONS request) which
+// Zapier's catch hooks don't always respond to with the headers the browser
+// expects, producing "Failed to fetch" in the console. multipart/form-data is
+// a "simple" request — no preflight — and Zapier handles file uploads as
+// native attachable files (no Formatter step needed in the Zap).
+function buildFormData(payload, pdfBlob, pdfFilename) {
+  const fd = new FormData();
+  Object.entries(payload).forEach(([k, v]) => {
+    if (v === null || v === undefined) return;
+    fd.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
+  });
+  if (pdfBlob) fd.append('pdf', pdfBlob, pdfFilename);
+  return fd;
 }
 
 /* ---------- Build the HTML body emailed via Zapier ---------- */
@@ -1387,9 +1402,7 @@ async function onSubmit() {
   setStatus($('submitStatus'), 'Generating PDF and submitting to Zapier…', '');
 
   try {
-    const { dataUri, filename } = await makePDF();
-    // dataUri = "data:application/pdf;base64,JVBERi0xLjQK..."
-    const base64 = dataUri.split(',')[1];
+    const { blob, filename } = await makePDF();
     const grade = STATE.gradeForReport || $('overallGrade').value || 'C';
     const total = STATE.reps.length;
     const empEmail = (rep.name || '').toLowerCase().replace(/\s+/g, '.') + '@blufoxmobile.com';
@@ -1480,15 +1493,15 @@ async function onSubmit() {
       email_subject: `Scorecard — ${rep.name} (${grade}) — ${STATE.selectedStore}`,
       email_body_html: buildEmailHTML(rep, grade),
 
-      // Attachment (use file/url field in Zap to attach)
+      // PDF is attached separately as a real file (see buildFormData below).
+      // No base64 — Zapier sees a normal file upload in the "pdf" field.
       pdf_filename: filename,
-      pdf_base64: base64,
     };
 
+    const fd = buildFormData(payload, blob, filename);
     const resp = await fetch(CONFIG.ZAPIER_WEBHOOK_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: fd,    // browser sets Content-Type: multipart/form-data; boundary=...
     });
     if (!resp.ok) throw new Error('Zapier returned HTTP ' + resp.status);
 
