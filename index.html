@@ -247,7 +247,13 @@
     border-radius: 10px;
     padding: 14px 16px;
     background: #fafcff;
+    /* PDF pagination — don't slice cards across pages */
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
+  .sc-row { page-break-inside: avoid; break-inside: avoid; }
+  .metric-table tr { page-break-inside: avoid; break-inside: avoid; }
+  .sc-header { page-break-after: avoid; break-after: avoid; }
   .sc-card h3 {
     margin: 0 0 10px;
     font-size: 13px;
@@ -1216,15 +1222,35 @@ function buildRankingRows(rep) {
   }));
 }
 
-/* ---------- PDF generation ---------- */
+/* ---------- PDF generation ----------
+   html2pdf renders the element to a single tall canvas then slices it across
+   PDF pages. Without `pagebreak.mode` it would just truncate; we tell it to
+   honor CSS page-break rules AND fall back to legacy slicing. We also clone
+   the scorecard at a fixed PDF-friendly width so the side-by-side cards
+   render properly even on narrow viewports (mobile, retina sidebar, etc).
+*/
 async function makePDF() {
   const el = $('scorecard');
+  // Letter @ 96dpi minus 10mm margins ≈ 770px usable width.
+  // Force the on-screen element to render at this width so the layout the
+  // user sees on a wide screen is what gets captured, not the responsive
+  // mobile collapse.
   const opt = {
-    margin: 8,
+    margin: [10, 10, 10, 10],   // mm: top, left, bottom, right
     filename: `Scorecard_${(STATE.selectedEmployee?.name || 'employee').replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`,
     image: { type: 'jpeg', quality: 0.95 },
-    html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-    jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' }
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      // Lock the render width regardless of the actual viewport width
+      windowWidth: 880,
+      width: 880,
+    },
+    jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait', compress: true },
+    // Honor `page-break-inside: avoid` (set on .sc-card / .sc-row / tr) and
+    // also use the legacy slicer for the long content between break points.
+    pagebreak: { mode: ['css', 'legacy'] },
   };
   const pdf = await html2pdf().set(opt).from(el).toPdf().get('pdf');
   const blob = pdf.output('blob');
@@ -1262,134 +1288,221 @@ function buildFormData(payload, pdfBlob, pdfFilename) {
   return fd;
 }
 
-/* ---------- Build the HTML body emailed via Zapier ---------- */
+/* ---------- Build the HTML body emailed via Zapier ----------
+   Email-safe rebuild that closely mirrors the on-screen scorecard.
+   Outlook doesn't support flex/grid → everything is table-based.
+   Inline styles only — no <style> blocks (Outlook strips them).
+*/
 function buildEmailHTML(rep, grade) {
   const total = STATE.reps.length;
   const pct = rep.rank ? rep.rank / total : null;
   const short = stripXfinity(STATE.selectedStore || '');
   const goals = STATE.goalsForReport || [];
   const ranks = STATE.rankingForReport || [];
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+  // Grade chip color
+  const gradeBg = ({A:'#21c46c',B:'#66d36a',C:'#f6a01b',D:'#ff7a45',F:'#e23b3b'})[grade] || '#f6a01b';
+  const gradeFg = ({A:'#fff', B:'#1a1a1a', C:'#1a1a1a', D:'#fff', F:'#fff'})[grade] || '#1a1a1a';
+
+  // === Goal table ===
   const goalRowsHtml = goals.map(r => {
     const goalFmt = r.fmt === 'money' ? fmtMoney(r.goal) : fmtNum(r.goal, 0);
     const actFmt  = r.fmt === 'money' ? fmtMoney(r.actual) : fmtNum(r.actual, 0);
     const toGoal  = fmtToGoal(r.actual, r.goal);
     const gap     = fmtGap(r.actual, r.goal, r.fmt === 'money');
     const color   = toGoal.cls === 'goal-hit' ? '#136c3f' : (toGoal.cls === 'goal-close' ? '#8a5a00' : '#993300');
+    const gapColor = gap.cls === 'gap-pos' ? '#136c3f' : '#993300';
     return `<tr>
-      <td style="padding:8px;border-bottom:1px solid #eee;">${r.label}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${goalFmt}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${actFmt}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;color:${color};font-weight:700;">${toGoal.text}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${gap.text}</td>
+      <td style="padding:9px 10px;border-bottom:1px solid #eaf0fa;">${esc(r.label)}</td>
+      <td style="padding:9px 10px;border-bottom:1px solid #eaf0fa;text-align:center;">${goalFmt}</td>
+      <td style="padding:9px 10px;border-bottom:1px solid #eaf0fa;text-align:center;">${actFmt}</td>
+      <td style="padding:9px 10px;border-bottom:1px solid #eaf0fa;text-align:center;color:${color};font-weight:700;">${toGoal.text}</td>
+      <td style="padding:9px 10px;border-bottom:1px solid #eaf0fa;text-align:center;color:${gapColor};">${gap.text}</td>
     </tr>`;
   }).join('');
 
+  // === National ranking table ===
   const pillStyle = (cls) => {
     const bg = ({ 'rank-top':'#d6f6e3','rank-strong':'#dceffd','rank-mid':'#fff3d6','rank-low':'#ffe1d6','rank-bottom':'#ffd6d6' })[cls] || '#eee';
     const fg = ({ 'rank-top':'#136c3f','rank-strong':'#134f7d','rank-mid':'#8a5a00','rank-low':'#993300','rank-bottom':'#8a1a1a' })[cls] || '#333';
-    return `display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:${bg};color:${fg};`;
+    return `display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;background:${bg};color:${fg};`;
   };
+  const rankCell = (rank, total, label) => rank
+    ? `<div style="font-weight:600;line-height:1.2;margin-bottom:4px;">#${rank} of ${total}</div><span style="${pillStyle(label.cls)}">${label.label}</span>`
+    : '—';
   const rankRowsHtml = ranks.map(r => {
     const rb = rankLabel(r.repRank, r.repTotal);
     const sb = rankLabel(r.storeRank, r.storeTotal);
-    const repCell = r.repRank
-      ? `<div style="font-weight:600;">#${r.repRank} of ${r.repTotal}</div><span style="${pillStyle(rb.cls)}">${rb.label}</span>`
-      : '—';
-    const storeCell = r.storeRank
-      ? `<div style="font-weight:600;">#${r.storeRank} of ${r.storeTotal}</div><span style="${pillStyle(sb.cls)}">${sb.label}</span>`
-      : '—';
     return `<tr>
-      <td style="padding:10px 8px;border-bottom:1px solid #eee;">${r.label}</td>
-      <td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:center;">${repCell}</td>
-      <td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:center;">${storeCell}</td>
+      <td style="padding:10px;border-bottom:1px solid #eaf0fa;">${esc(r.label)}</td>
+      <td style="padding:10px;border-bottom:1px solid #eaf0fa;text-align:center;">${rankCell(r.repRank, r.repTotal, rb)}</td>
+      <td style="padding:10px;border-bottom:1px solid #eaf0fa;text-align:center;">${rankCell(r.storeRank, r.storeTotal, sb)}</td>
     </tr>`;
   }).join('');
 
-  // NPS comparison
+  // === NPS comparison ===
   const storeNPS = STATE.storeNPS[short];
   const npsStats = STATE.storeNPSStats || {};
   const storeNPSRank = npsStats.rankOf ? npsStats.rankOf(short) : null;
+  const storeNPSBucket = storeNPSRank ? rankLabel(storeNPSRank, npsStats.total) : null;
   const empNps = $('empNPS').value;
-  let empNpsLine = '';
+  let empNpsDelta = '—';
   if (empNps && npsStats.avg != null) {
     const empNum = Number(empNps);
     const empPct = empNum > 1 ? empNum / 100 : empNum;
     const delta = empPct - npsStats.avg;
     const sign = delta >= 0 ? '+' : '';
     const color = delta >= 0 ? '#136c3f' : '#993300';
-    empNpsLine = ` <span style="color:${color};">(${sign}${(delta*100).toFixed(1)} pts vs. company avg)</span>`;
+    empNpsDelta = `<span style="color:${color};font-weight:700;">${sign}${(delta * 100).toFixed(1)} pts ${delta >= 0 ? 'above' : 'below'} company avg</span>`;
   }
 
-  return `
-  <div style="font-family:Arial,Helvetica,sans-serif; max-width:760px; margin:0 auto; color:#0e2742;">
-    <div style="background:#0a2a52; color:#fff; padding:20px 24px; border-radius:10px 10px 0 0; display:flex; justify-content:space-between; align-items:center;">
-      <div>
-        <div style="color:#f6a01b; font-size:20px; font-weight:bold;">Employee Scorecard</div>
-        <div style="font-size:14px; margin-top:4px;">${rep.name} · ${rep.title || 'Sales'} · ${STATE.selectedStore}</div>
-        <div style="font-size:12px; opacity:.8; margin-top:4px;">Generated ${new Date().toLocaleString()}</div>
-      </div>
-      <div style="background:#f6a01b; color:#1a1a1a; width:64px; height:64px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:32px; font-weight:bold;">${grade}</div>
+  // === KV helpers (mirror the .sc-kv pattern from on-screen) ===
+  const kv = (k, v) => `<tr>
+    <td style="padding:5px 0;color:#486490;font-size:14px;">${esc(k)}</td>
+    <td style="padding:5px 0;font-weight:600;font-size:14px;text-align:right;">${v}</td>
+  </tr>`;
+  const cardOpen = (title) => `<div style="border:1px solid #e0eaf6;border-radius:10px;padding:14px 16px;background:#fafcff;margin-bottom:16px;">
+    <div style="text-transform:uppercase;font-size:12px;letter-spacing:.6px;color:#486490;font-weight:600;margin-bottom:8px;">${esc(title)}</div>`;
+  const cardClose = `</div>`;
+
+  // Employee + Company Ranking row (two cards side by side)
+  const empCard = cardOpen('Employee') +
+    `<table style="width:100%;border-collapse:collapse;">${
+      kv('Name', `<span>${esc(rep.name)}</span>`) +
+      kv('Title', esc(rep.title || '—')) +
+      kv('Store', esc(STATE.selectedStore)) +
+      kv('Hire Date', fmtHire(rep.hireDate)) +
+      kv('Total Clocked Hrs', rep.hours != null ? Number(rep.hours).toFixed(1) : '—')
+    }</table>` + cardClose;
+
+  const rankCard = cardOpen('Company Ranking') +
+    `<table style="width:100%;border-collapse:collapse;">${
+      kv('Overall Rank', rep.rank ? `#${rep.rank} of ${total}` : '—') +
+      kv('Percentile', pct ? `Top ${(pct * 100).toFixed(1)}%` : '—') +
+      kv('Total Score (points)', rep.totalScore != null ? Number(rep.totalScore).toFixed(1) : '—') +
+      kv('Avg GP / Hr', rep.gpPerHr != null ? fmtMoney(rep.gpPerHr) : '—')
+    }</table>` + cardClose;
+
+  // NPS + Store Context row
+  const npsCard = cardOpen('NPS — Store vs. Employee') +
+    `<table style="width:100%;border-collapse:collapse;">${
+      kv('Store NPS (from Sales Report)', storeNPS != null ? fmtPct(storeNPS, 0) : '—') +
+      kv('Company avg store NPS', npsStats.avg != null ? fmtPct(npsStats.avg, 1) : '—') +
+      kv('Your store rank', storeNPSRank ? `#${storeNPSRank} of ${npsStats.total} <span style="${pillStyle(storeNPSBucket.cls)}">${storeNPSBucket.label}</span>` : '—')
+    }</table>
+    <div style="border-top:1px solid #eaf0fa;margin:8px 0;"></div>
+    <table style="width:100%;border-collapse:collapse;">${
+      kv('Your personal NPS (entered)', empNps ? (Number(empNps) > 1 ? empNps + '%' : fmtPct(Number(empNps), 0)) : '—') +
+      kv('vs. company avg store NPS', empNpsDelta)
+    }</table>` + cardClose;
+
+  const ctxCard = cardOpen('Manual Metrics & Store Context') +
+    `<table style="width:100%;border-collapse:collapse;">${
+      kv('T-Sheets MTD', $('empTSheets').value || '—') +
+      kv('Triple Plays MTD', $('empTriples').value || '—') +
+      kv('Quad Plays MTD', $('empQuads').value || '—')
+    }</table>
+    <div style="border-top:1px solid #eaf0fa;margin:8px 0;"></div>
+    <table style="width:100%;border-collapse:collapse;">${
+      kv('Store', esc(STATE.selectedStore)) +
+      kv('Store Manager', esc($('storeMgrName').value || '—')) +
+      kv('Store MTD Traffic', (STATE.shoppertrack[short] || {}).mtdTraffic != null ? fmtNum(STATE.shoppertrack[short].mtdTraffic) : '—') +
+      kv('Daily Shopper Track Avg', $('dailyShopperTrack').value ? fmtNum($('dailyShopperTrack').value, 1) : '—') +
+      kv('Staff on Floor', $('numEmployees').value || '—')
+    }</table>` + cardClose;
+
+  // Strengths + Areas
+  const strengthsCard = cardOpen('Coaching Strengths') +
+    `<div style="white-space:pre-wrap;font-size:14px;">${esc($('strengths').value || '—')}</div>` + cardClose;
+  const areasCard = cardOpen('Areas to Improve') +
+    `<div style="white-space:pre-wrap;font-size:14px;">${esc($('areas').value || '—')}</div>` + cardClose;
+
+  // Two-column table helper (renders side-by-side on desktop, stacks gracefully)
+  const twoCol = (left, right) => `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;margin-bottom:0;">
+    <tr>
+      <td valign="top" style="width:50%;padding-right:8px;">${left}</td>
+      <td valign="top" style="width:50%;padding-left:8px;">${right}</td>
+    </tr>
+  </table>`;
+
+  const notes = $('notes').value || '';
+  const notesCard = notes.trim() ? cardOpen('Additional Coaching Notes') +
+    `<div style="white-space:pre-wrap;font-size:14px;">${esc(notes)}</div>` + cardClose : '';
+
+  // === FULL EMAIL ===
+  return `<!-- Blufox Employee Scorecard email — auto-generated -->
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:760px;margin:0 auto;color:#0e2742;background:#aedaff;padding:20px;">
+  <div style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(10,42,82,.10);">
+
+    <!-- Dark header bar -->
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#0a2a52;color:#fff;border-collapse:collapse;">
+      <tr>
+        <td style="padding:22px 28px;" valign="middle">
+          <div style="color:#f6a01b;font-size:22px;font-weight:bold;">${esc(rep.name)} — ${esc(grade)}</div>
+          <div style="font-size:14px;margin-top:4px;opacity:.9;">${esc(rep.title || 'Sales')} · ${esc(STATE.selectedStore)} · Coaching as of ${new Date().toLocaleDateString()}</div>
+        </td>
+        <td style="padding:22px 28px;text-align:right;" valign="middle" width="100">
+          <div style="display:inline-block;background:${gradeBg};color:${gradeFg};width:64px;height:64px;border-radius:50%;text-align:center;line-height:64px;font-size:32px;font-weight:bold;">${esc(grade)}</div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Body -->
+    <div style="padding:24px 28px;">
+      ${twoCol(empCard, rankCard)}
+
+      ${cardOpen('Goal Tracking (Month-to-Date)') +
+        `<table style="width:100%;border-collapse:collapse;font-size:14px;">
+          <thead>
+            <tr style="background:#f1f6fd;">
+              <th style="padding:9px 10px;text-align:left;color:#486490;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.6px;">Category</th>
+              <th style="padding:9px 10px;text-align:center;color:#486490;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.6px;">Your Goal</th>
+              <th style="padding:9px 10px;text-align:center;color:#486490;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.6px;">Your Actual</th>
+              <th style="padding:9px 10px;text-align:center;color:#486490;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.6px;">% to Goal</th>
+              <th style="padding:9px 10px;text-align:center;color:#486490;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.6px;">Gap</th>
+            </tr>
+          </thead>
+          <tbody>${goalRowsHtml}</tbody>
+        </table>` + cardClose}
+
+      ${cardOpen('National Ranking — How Close to #1') +
+        `<table style="width:100%;border-collapse:collapse;font-size:14px;">
+          <thead>
+            <tr style="background:#f1f6fd;">
+              <th style="padding:10px;text-align:left;color:#486490;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.6px;">Category</th>
+              <th style="padding:10px;text-align:center;color:#486490;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.6px;">Your Rank</th>
+              <th style="padding:10px;text-align:center;color:#486490;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.6px;">Store Rank</th>
+            </tr>
+          </thead>
+          <tbody>${rankRowsHtml}</tbody>
+        </table>` + cardClose}
+
+      ${twoCol(npsCard, ctxCard)}
+      ${twoCol(strengthsCard, areasCard)}
+      ${notesCard}
+
+      <!-- Signature lines -->
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:8px;">
+        <tr>
+          <td style="border-top:1px solid #c8d3e2;padding-top:6px;font-size:12px;color:#486490;text-align:center;width:33%;">Employee Signature</td>
+          <td style="width:16px;"></td>
+          <td style="border-top:1px solid #c8d3e2;padding-top:6px;font-size:12px;color:#486490;text-align:center;width:33%;">Manager Signature</td>
+          <td style="width:16px;"></td>
+          <td style="border-top:1px solid #c8d3e2;padding-top:6px;font-size:12px;color:#486490;text-align:center;width:33%;">Date</td>
+        </tr>
+      </table>
     </div>
 
-    <div style="background:#fff; padding:20px 24px; border:1px solid #e0eaf6; border-top:0;">
-      <p style="margin:0 0 12px;">
-        <b>Company Rank:</b> ${rep.rank ? '#' + rep.rank + ' of ' + total : '—'} ${pct ? '(Top ' + (pct*100).toFixed(1) + '%)' : ''}
-      </p>
-
-      <h3 style="color:#0a2a52;margin-top:18px;">Goal Tracking (Month-to-Date)</h3>
-      <table style="width:100%; border-collapse:collapse; font-size:14px;">
-        <thead>
-          <tr style="background:#f1f6fd;">
-            <th style="padding:8px; text-align:left;">Category</th>
-            <th style="padding:8px; text-align:center;">Goal</th>
-            <th style="padding:8px; text-align:center;">Actual</th>
-            <th style="padding:8px; text-align:center;">% to Goal</th>
-            <th style="padding:8px; text-align:center;">Gap</th>
-          </tr>
-        </thead>
-        <tbody>${goalRowsHtml}</tbody>
-      </table>
-
-      <h3 style="color:#0a2a52;margin-top:20px;">National Ranking — How Close to #1</h3>
-      <table style="width:100%; border-collapse:collapse; font-size:14px;">
-        <thead>
-          <tr style="background:#f1f6fd;">
-            <th style="padding:8px; text-align:left;">Category</th>
-            <th style="padding:8px; text-align:center;">Your Rank</th>
-            <th style="padding:8px; text-align:center;">Store Rank</th>
-          </tr>
-        </thead>
-        <tbody>${rankRowsHtml}</tbody>
-      </table>
-
-      <h3 style="color:#0a2a52;margin-top:20px;">NPS</h3>
-      <ul style="padding-left:18px;line-height:1.7;">
-        <li><b>Store NPS:</b> ${storeNPS != null ? fmtPct(storeNPS, 0) : '—'} ${storeNPSRank ? `· ranked #${storeNPSRank} of ${npsStats.total} stores` : ''}</li>
-        <li><b>Company avg store NPS:</b> ${npsStats.avg != null ? fmtPct(npsStats.avg, 1) : '—'}</li>
-        <li><b>Employee personal NPS (entered):</b> ${empNps || '—'}${empNpsLine}</li>
-      </ul>
-
-      <h3 style="color:#0a2a52;">Other manual metrics</h3>
-      <ul style="padding-left:18px;line-height:1.6;">
-        <li>Triple Plays MTD: ${$('empTriples').value || '—'}</li>
-        <li>Quad Plays MTD: ${$('empQuads').value || '—'}</li>
-      </ul>
-
-      <h3 style="color:#0a2a52;">Strengths</h3>
-      <div style="white-space:pre-wrap; background:#f4f8fd; padding:10px; border-radius:6px;">${($('strengths').value || '').replace(/</g,'&lt;')}</div>
-
-      <h3 style="color:#0a2a52;">Areas to Improve</h3>
-      <div style="white-space:pre-wrap; background:#fff1e8; padding:10px; border-radius:6px;">${($('areas').value || '').replace(/</g,'&lt;')}</div>
-
-      ${$('notes').value ? `<h3 style="color:#0a2a52;">Additional Coaching Notes</h3>
-      <div style="white-space:pre-wrap;">${$('notes').value.replace(/</g,'&lt;')}</div>` : ''}
-
-      <p style="margin-top:24px; font-size:12px; color:#486490;">
-        Coaching conversation conducted by ${$('storeMgrName').value || $('storeMgrEmail').value || 'store manager'} on ${new Date().toLocaleDateString()}.
-      </p>
-    </div>
-  </div>`;
+    <!-- Footer -->
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f4f8fd;border-top:1px solid #e0eaf6;">
+      <tr>
+        <td style="padding:14px 28px;font-size:12px;color:#486490;">Generated ${new Date().toLocaleString()} · Coaching by ${esc($('storeMgrName').value || $('storeMgrEmail').value || 'store manager')}</td>
+        <td style="padding:14px 28px;font-size:12px;color:#486490;text-align:right;">Blufox Mobile · Employee Scorecard</td>
+      </tr>
+    </table>
+  </div>
+</div>`;
 }
 
 /* ---------- Submit to Zapier ---------- */
