@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Blufox Mobile — Employee Scorecard</title>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<!-- SheetJS (for .xlsx parsing) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- html2pdf for PDF generation -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+  :root {
+    --bf-navy: #0a2a52;
+    --bf-navy-2: #0f3a6b;
+    --bf-navy-3: #143b6d;
+    --bf-blue-light: #aedaff;
+    --bf-blue-light-2: #cfe8ff;
+    --bf-orange: #f6a01b;
+    --bf-orange-2: #ff8a00;
+    --bf-green: #1ec773;
+    --bf-red: #e23b3b;
+    --bf-amber: #f5b833;
+    --bf-text: #0e2742;
+    --bf-text-soft: #486490;
+    --bf-card: #ffffff;
+    --bf-shadow: 0 8px 24px rgba(10,42,82,.10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", sans-serif;
+    background: var(--bf-blue-light);
+    color: var(--bf-text);
+    min-height: 100vh;
+    padding: 24px 16px 80px;
+  }
+  .page {
+    max-width: 880px;
+    margin: 0 auto;
+  }
+  .card {
+    background: var(--bf-navy);
+    color: #fff;
+    border-radius: 12px;
+    box-shadow: var(--bf-shadow);
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 24px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    border-bottom: 1px solid rgba(255,255,255,.10);
+  }
+  .card-header img { height: 56px; }
+  .card-header h1 {
+    margin: 0;
+    color: var(--bf-orange);
+    font-size: 28px;
+    line-height: 1.15;
+    letter-spacing: .5px;
+    text-align: right;
+  }
+  .card-body { padding: 8px 20px 20px; }
+
+  /* Accordions */
+  .accordion {
+    margin-top: 14px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: rgba(255,255,255,.06);
+  }
+  .accordion-header {
+    cursor: pointer;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255,255,255,.08);
+    font-weight: 600;
+    user-select: none;
+    color: #cfdcef;
+  }
+  .accordion-header .chev {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.85);
+    color: var(--bf-navy);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    transition: transform .2s;
+  }
+  .accordion.open .accordion-header .chev { transform: rotate(90deg); }
+  .accordion-body { display: none; padding: 18px; }
+  .accordion.open .accordion-body { display: block; }
+  .accordion-title {
+    text-align: center;
+    color: var(--bf-orange);
+    font-weight: 700;
+    font-size: 18px;
+    margin: 0 0 6px;
+  }
+  .accordion-subtitle {
+    text-align: center;
+    color: var(--bf-orange);
+    font-size: 12px;
+    margin: 0 0 14px;
+    opacity: .85;
+  }
+  .divider {
+    border-top: 1px solid rgba(255,255,255,.15);
+    margin: 12px 0 18px;
+  }
+
+  /* Form fields */
+  .field { margin: 14px 0; }
+  .field label {
+    display: block;
+    color: var(--bf-orange);
+    font-weight: 600;
+    margin-bottom: 6px;
+    font-size: 14px;
+  }
+  .field .req { color: #ff6b6b; margin-left: 4px; }
+  .field input,
+  .field select,
+  .field textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 6px;
+    background: var(--bf-blue-light);
+    color: var(--bf-text);
+    font-size: 15px;
+    font-family: inherit;
+  }
+  .field textarea { min-height: 90px; resize: vertical; }
+  .field input:focus,
+  .field select:focus,
+  .field textarea:focus {
+    outline: 2px solid var(--bf-orange);
+    outline-offset: 1px;
+  }
+  .field .hint {
+    margin-top: 4px;
+    font-size: 12px;
+    color: rgba(255,255,255,.65);
+  }
+  .field-disabled input { background: #d8e6f5; opacity: .85; }
+
+  .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 640px) { .row-2 { grid-template-columns: 1fr; } }
+
+  /* Buttons */
+  .button-row {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    padding: 18px;
+    border-top: 1px solid rgba(255,255,255,.10);
+    flex-wrap: wrap;
+  }
+  .btn {
+    border: 0;
+    padding: 11px 18px;
+    border-radius: 7px;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: inherit;
+  }
+  .btn-primary { background: var(--bf-orange); color: #1a1a1a; }
+  .btn-primary:hover { background: var(--bf-orange-2); }
+  .btn-success { background: var(--bf-green); color: #fff; }
+  .btn-success:hover { filter: brightness(1.05); }
+  .btn-ghost { background: #fff; color: var(--bf-text); }
+  .btn-ghost:hover { background: #f4f8fd; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* Status banner */
+  .status {
+    margin: 0 18px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    background: rgba(255,255,255,.10);
+    color: #d8e6f5;
+    display: none;
+  }
+  .status.show { display: block; }
+  .status.success { background: rgba(30,199,115,.18); color: #c8f5dd; }
+  .status.error { background: rgba(226,59,59,.18); color: #ffd0d0; }
+
+  /* Scorecard view (rendered after Generate) */
+  .scorecard {
+    background: #fff;
+    color: var(--bf-text);
+    border-radius: 14px;
+    box-shadow: var(--bf-shadow);
+    margin-top: 28px;
+    overflow: hidden;
+    display: none;
+  }
+  .scorecard.show { display: block; }
+  .sc-header {
+    background: var(--bf-navy);
+    color: #fff;
+    padding: 22px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .sc-header h2 {
+    margin: 0;
+    color: var(--bf-orange);
+    font-size: 22px;
+  }
+  .sc-header .who { font-size: 14px; margin-top: 4px; opacity: .85; }
+  .grade-badge {
+    width: 88px; height: 88px;
+    border-radius: 50%;
+    background: var(--bf-orange);
+    color: #1a1a1a;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 46px; font-weight: 800;
+    box-shadow: 0 0 0 4px rgba(255,255,255,.15);
+  }
+  .grade-A { background: #21c46c; color: #fff; }
+  .grade-B { background: #66d36a; color: #1a1a1a; }
+  .grade-C { background: var(--bf-orange); color: #1a1a1a; }
+  .grade-D { background: #ff7a45; color: #fff; }
+  .grade-F { background: var(--bf-red); color: #fff; }
+
+  .sc-body { padding: 24px 28px; }
+  .sc-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px; }
+  @media (max-width: 700px) { .sc-row { grid-template-columns: 1fr; } }
+
+  .sc-card {
+    border: 1px solid #e0eaf6;
+    border-radius: 10px;
+    padding: 14px 16px;
+    background: #fafcff;
+  }
+  .sc-card h3 {
+    margin: 0 0 10px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: var(--bf-text-soft);
+  }
+  .sc-kv { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px; }
+  .sc-kv .k { color: var(--bf-text-soft); }
+  .sc-kv .v { font-weight: 600; }
+
+  .metric-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .metric-table th, .metric-table td { text-align: left; padding: 9px 8px; border-bottom: 1px solid #eaf0fa; }
+  .metric-table th {
+    background: #f1f6fd;
+    color: var(--bf-text-soft);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: .6px;
+  }
+  .metric-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .rank-pill {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .rank-top { background: #d6f6e3; color: #136c3f; }
+  .rank-strong { background: #dceffd; color: #134f7d; }
+  .rank-mid { background: #fff3d6; color: #8a5a00; }
+  .rank-low { background: #ffe1d6; color: #993300; }
+  .rank-bottom { background: #ffd6d6; color: #8a1a1a; }
+
+  .pct-bar { background: #eaf0fa; height: 8px; border-radius: 6px; overflow: hidden; margin-top: 6px; }
+  .pct-fill { height: 100%; background: linear-gradient(90deg, var(--bf-orange), var(--bf-green)); }
+
+  .opp-block { margin-top: 6px; }
+  .opp-block h4 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--bf-text-soft); }
+  .opp-block .tag {
+    display: inline-block;
+    background: #eef5ff;
+    color: #134f7d;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+    margin: 0 6px 6px 0;
+  }
+  .opp-block.areas .tag { background: #fff1e8; color: #8a3a0e; }
+
+  .sc-footer {
+    padding: 18px 28px;
+    background: #f4f8fd;
+    border-top: 1px solid #e0eaf6;
+    font-size: 12px;
+    color: var(--bf-text-soft);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .sig { display: flex; gap: 22px; padding: 14px 28px 22px; flex-wrap: wrap; }
+  .sig .line {
+    flex: 1 1 220px;
+    border-top: 1px solid #c8d3e2;
+    margin-top: 32px;
+    padding-top: 6px;
+    font-size: 12px;
+    color: var(--bf-text-soft);
+    text-align: center;
+  }
+
+  /* Print styles */
+  @media print {
+    body { background: #fff; padding: 0; }
+    .card, .button-row, .status { display: none !important; }
+    .scorecard { box-shadow: none; margin: 0; border-radius: 0; }
+    .sc-header { background: var(--bf-navy) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
+  /* Small responsive tweaks */
+  @media (max-width: 600px) {
+    .card-header { flex-direction: column; text-align: center; }
+    .card-header h1 { text-align: center; font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ===================== INPUT FORM ===================== -->
+  <div class="card" id="form-card">
+    <div class="card-header">
+      <img src="https://raw.githubusercontent.com/BlufoxMobile/Daily-Sales-Report/main/data/blufox-logo.png" alt="Blufox" onerror="this.style.display='none'">
+      <h1>EMPLOYEE<br>SCORE CARD</h1>
+    </div>
+
+    <div id="loadStatus" class="status show">Loading latest data…</div>
+
+    <div class="card-body">
+      <!-- Hidden state inputs (auto-populated, never shown to employee) -->
+      <div style="display:none;" aria-hidden="true">
+        <input id="storeMgrName" type="text" />
+        <input id="storeMgrEmail" type="text" />
+        <input id="dmEmail" type="text" />
+        <input id="numEmployees" type="number" />
+        <input id="dailyShopperTrack" type="number" />
+        <input id="empXM" type="number" />
+        <input id="empRGUs" type="number" />
+        <input id="empWatchTab" type="number" />
+        <input id="empAccDollars" type="number" />
+        <input id="empInternet" type="number" />
+        <input id="companyRank" type="text" />
+        <select id="overallGrade">
+          <option value=""></option>
+          <option>A</option><option>B</option><option>C</option><option>D</option><option>F</option>
+        </select>
+      </div>
+
+      <!-- Pick employee (store + name) -->
+      <div class="accordion open" data-acc="pick">
+        <div class="accordion-header"><span>Who are we coaching today?</span><span class="chev">▼</span></div>
+        <div class="accordion-body">
+          <div class="divider"></div>
+          <div class="row-2">
+            <div class="field">
+              <label>Store <span class="req">*</span></label>
+              <select id="storeSelect"><option value="">— Select a store —</option></select>
+            </div>
+            <div class="field">
+              <label>Employee <span class="req">*</span></label>
+              <select id="employeeSelect" disabled><option value="">— Select a store first —</option></select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manual MTD entries (numbers we can't pull) -->
+      <div class="accordion open" data-acc="manual">
+        <div class="accordion-header"><span>Manual entries (not in the sales report):</span><span class="chev">▼</span></div>
+        <div class="accordion-body">
+          <p class="accordion-subtitle">NPS &amp; T-Sheets come from RQ4. Triple/Quad plays aren't tracked in the daily report.</p>
+          <div class="divider"></div>
+
+          <div class="row-2">
+            <div class="field">
+              <label>Employee NPS</label>
+              <input id="empNPS" type="number" step="0.01" placeholder="e.g., 75" />
+            </div>
+            <div class="field">
+              <label>Total T-Sheets MTD</label>
+              <input id="empTSheets" type="number" placeholder="e.g., 23" />
+            </div>
+          </div>
+
+          <div class="row-2">
+            <div class="field">
+              <label>Total Triple Plays MTD</label>
+              <input id="empTriples" type="number" placeholder="e.g., 4" />
+            </div>
+            <div class="field">
+              <label>Total Quad Plays MTD</label>
+              <input id="empQuads" type="number" placeholder="e.g., 1" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Coaching conversation -->
+      <div class="accordion open" data-acc="opps">
+        <div class="accordion-header"><span>Coaching conversation:</span><span class="chev">▼</span></div>
+        <div class="accordion-body">
+          <p class="accordion-subtitle">Strengths &amp; areas pre-fill from where this rep ranks nationally — edit freely as you discuss.</p>
+          <div class="divider"></div>
+
+          <div class="field">
+            <label>Strengths</label>
+            <textarea id="strengths" placeholder="What this rep is doing well — auto-suggested from top category ranks after you pick an employee."></textarea>
+          </div>
+          <div class="field">
+            <label>Areas to Improve</label>
+            <textarea id="areas" placeholder="Where to coach — auto-suggested from lowest category ranks after you pick an employee."></textarea>
+          </div>
+          <div class="field">
+            <label>Additional Coaching Notes</label>
+            <textarea id="notes" placeholder="Anything else you want documented for this coaching conversation."></textarea>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="button-row">
+      <button class="btn btn-ghost" id="btnGenerate">📋 Generate Scorecard</button>
+      <button class="btn btn-primary" id="btnDownload" disabled>⬇️ Download PDF</button>
+      <button class="btn btn-ghost" id="btnPrint" disabled>🖨️ Print</button>
+      <button class="btn btn-success" id="btnSubmit" disabled>📧 Submit &amp; Email</button>
+    </div>
+    <div id="submitStatus" class="status" style="margin-bottom:16px;"></div>
+  </div>
+
+  <!-- ===================== SCORECARD OUTPUT ===================== -->
+  <div class="scorecard" id="scorecard">
+    <div class="sc-header">
+      <div>
+        <h2 id="scHeaderTitle">Employee Scorecard</h2>
+        <div class="who" id="scHeaderWho"></div>
+      </div>
+      <div class="grade-badge" id="scGradeBadge">—</div>
+    </div>
+
+    <div class="sc-body">
+      <div class="sc-row">
+        <div class="sc-card">
+          <h3>Employee</h3>
+          <div class="sc-kv"><span class="k">Name</span><span class="v" id="scName">—</span></div>
+          <div class="sc-kv"><span class="k">Title</span><span class="v" id="scTitle">—</span></div>
+          <div class="sc-kv"><span class="k">Store</span><span class="v" id="scStore">—</span></div>
+          <div class="sc-kv"><span class="k">Hire Date</span><span class="v" id="scHire">—</span></div>
+          <div class="sc-kv"><span class="k">Total Clocked Hrs</span><span class="v" id="scHours">—</span></div>
+        </div>
+        <div class="sc-card">
+          <h3>Company Ranking</h3>
+          <div class="sc-kv"><span class="k">Overall Rank</span><span class="v" id="scRank">—</span></div>
+          <div class="sc-kv"><span class="k">Percentile</span><span class="v" id="scPct">—</span></div>
+          <div class="pct-bar"><div class="pct-fill" id="scPctFill" style="width:0%"></div></div>
+          <div class="sc-kv" style="margin-top:8px;"><span class="k">Total Score (points)</span><span class="v" id="scTotalScore">—</span></div>
+          <div class="sc-kv"><span class="k">Avg GP / Hr</span><span class="v" id="scGPHr">—</span></div>
+        </div>
+      </div>
+
+      <div class="sc-card">
+        <h3>Performance by Category (Month-to-Date)</h3>
+        <table class="metric-table">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th class="num">Your #</th>
+              <th class="num">Company Avg</th>
+              <th class="num">Top Performer</th>
+              <th>National Rank</th>
+            </tr>
+          </thead>
+          <tbody id="scMetricRows"></tbody>
+        </table>
+      </div>
+
+      <div class="sc-row">
+        <div class="sc-card">
+          <h3>Manual Metrics (entered by manager)</h3>
+          <div class="sc-kv"><span class="k">NPS</span><span class="v" id="scNPS">—</span></div>
+          <div class="sc-kv"><span class="k">T-Sheets MTD</span><span class="v" id="scTSheets">—</span></div>
+          <div class="sc-kv"><span class="k">Triple Plays MTD</span><span class="v" id="scTriples">—</span></div>
+          <div class="sc-kv"><span class="k">Quad Plays MTD</span><span class="v" id="scQuads">—</span></div>
+        </div>
+        <div class="sc-card">
+          <h3>Store Context</h3>
+          <div class="sc-kv"><span class="k">Store</span><span class="v" id="scStore2">—</span></div>
+          <div class="sc-kv"><span class="k">Store Manager</span><span class="v" id="scStoreMgr">—</span></div>
+          <div class="sc-kv"><span class="k">Daily Shopper Track Avg</span><span class="v" id="scTraffic">—</span></div>
+          <div class="sc-kv"><span class="k">Staff on Floor</span><span class="v" id="scStaff">—</span></div>
+        </div>
+      </div>
+
+      <div class="sc-row">
+        <div class="sc-card">
+          <h3>Coaching Strengths</h3>
+          <div class="opp-block" id="scStrengthsTags"></div>
+          <div id="scStrengthsText" style="margin-top:8px; font-size:14px; white-space:pre-wrap;"></div>
+        </div>
+        <div class="sc-card">
+          <h3>Areas to Improve</h3>
+          <div class="opp-block areas" id="scAreasTags"></div>
+          <div id="scAreasText" style="margin-top:8px; font-size:14px; white-space:pre-wrap;"></div>
+        </div>
+      </div>
+
+      <div class="sc-card" id="scNotesBlock" style="display:none;">
+        <h3>Additional Coaching Notes</h3>
+        <div id="scNotes" style="white-space:pre-wrap; font-size:14px;"></div>
+      </div>
+    </div>
+
+    <div class="sig">
+      <div class="line">Employee Signature</div>
+      <div class="line">Manager Signature</div>
+      <div class="line">Date</div>
+    </div>
+
+    <div class="sc-footer">
+      <span id="scFooterMeta">—</span>
+      <span>Blufox Mobile · Employee Scorecard</span>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   Blufox Employee Scorecard — single-file app
+   Data sources (all CORS-friendly from raw.githubusercontent.com):
+     - store-directory.json   → store list, store-manager mapping, DM mapping
+     - Sales Report.xlsx      → Rep Rank sheet, employee MTD metrics + ranks
+     - shoppertrack.xlsx      → Daily Shopper Track per store (MTD Avg Traffic)
+   ========================================================================= */
+
+const CONFIG = {
+  STORE_DIRECTORY_URL: 'https://raw.githubusercontent.com/BlufoxMobile/Daily-Sales-Report/main/data/store-directory.json',
+  SALES_REPORT_URL:    'https://raw.githubusercontent.com/BlufoxMobile/Daily-Sales-Report/main/data/Sales%20Report.xlsx',
+  SHOPPERTRACK_URL:    'https://raw.githubusercontent.com/BlufoxMobile/Daily-Sales-Report/main/data/shoppertrack.xlsx',
+  // Zapier catch-hook the user provided
+  ZAPIER_WEBHOOK_URL:  'https://hooks.zapier.com/hooks/catch/20441079/4b3u8xy/',
+  REP_RANK_SHEET: 'Rep Rank',
+  REP_RANK_HEADER_ROW: 5, // 1-indexed row in the sheet that has the real headers
+};
+
+const STATE = {
+  directory: null,    // store-directory.json
+  reps: [],           // array of rep objects (parsed)
+  shoppertrack: {},   // { 'Bourbonnais': { mtdAvgTraffic: 124.3, traffic: 4520 } }
+  selectedStore: null,
+  selectedEmployee: null,
+  metricsForReport: null,  // computed table data for currently-selected employee
+  gradeForReport: null,
+};
+
+/* ---------- helpers ---------- */
+const $ = (id) => document.getElementById(id);
+const stripXfinity = (s) => (s || '').replace(/\s*Xfinity Store\s*$/i, '').trim();
+const fmtMoney = (n) => (n == null || isNaN(n)) ? '—' : '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+const fmtNum = (n, d = 0) => (n == null || isNaN(n)) ? '—' : Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtPct = (n, d = 1) => (n == null || isNaN(n)) ? '—' : (Number(n) * 100).toFixed(d) + '%';
+
+function setStatus(el, msg, kind) {
+  el.className = 'status show' + (kind ? ' ' + kind : '');
+  el.textContent = msg;
+}
+function clearStatus(el) { el.className = 'status'; el.textContent = ''; }
+
+/* ---------- accordion toggle ---------- */
+document.querySelectorAll('.accordion-header').forEach(h => {
+  h.addEventListener('click', () => h.parentElement.classList.toggle('open'));
+});
+
+/* ---------- DATA LOADING ---------- */
+async function loadAll() {
+  try {
+    const [dir, salesBuf, stBuf] = await Promise.all([
+      fetch(CONFIG.STORE_DIRECTORY_URL + '?cb=' + Date.now()).then(r => r.json()),
+      fetch(CONFIG.SALES_REPORT_URL + '?cb=' + Date.now()).then(r => r.arrayBuffer()),
+      fetch(CONFIG.SHOPPERTRACK_URL + '?cb=' + Date.now()).then(r => r.arrayBuffer()),
+    ]);
+
+    STATE.directory = dir;
+    parseSalesReport(salesBuf);
+    parseShopperTrack(stBuf);
+    populateStoreDropdown();
+
+    setStatus($('loadStatus'),
+      `Latest data loaded · directory updated ${new Date(dir.updatedAt).toLocaleDateString()}`,
+      'success'
+    );
+  } catch (e) {
+    console.error(e);
+    setStatus($('loadStatus'), 'Failed to load data sources: ' + e.message, 'error');
+  }
+}
+
+function parseSalesReport(buf) {
+  const wb = XLSX.read(buf, { type: 'array' });
+  const ws = wb.Sheets[CONFIG.REP_RANK_SHEET];
+  if (!ws) throw new Error('Rep Rank sheet not found in Sales Report.xlsx');
+
+  const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
+  const headerRow = aoa[CONFIG.REP_RANK_HEADER_ROW - 1] || [];
+
+  // Build column index map (normalize header strings)
+  const col = {};
+  headerRow.forEach((h, i) => {
+    if (h == null) return;
+    const key = String(h).replace(/\s+/g, ' ').replace(/\n/g, ' ').trim();
+    col[key] = i;
+  });
+  // Helpful aliases — pick first present
+  const pick = (...names) => {
+    for (const n of names) if (n in col) return col[n];
+    return -1;
+  };
+  const cRank   = pick('Rank');
+  const cName   = pick('Employee');
+  const cTitle  = pick('Title');
+  const cLoc    = pick('Location');
+  const cDM     = pick('DM');
+  const cHours  = pick('Total Clocked');
+  const cGP     = pick('GP $ 25 Pts', 'GP $\\n25 Pts', 'GP $');
+  const cGPHr   = pick('GP/ HR 20 Pts', 'GP/ HR', 'GP/Hr');
+  const cMobMTD = pick('Mobile MTD');
+  const cTabMTD = pick('Tablet MTD');
+  const cWchMTD = pick('Watches MTD');
+  const cGrossMob = pick('Gross Mobile Sales MTD');
+  const cHSI    = pick('HSI');
+  const cAcc$   = pick('Net Accessory $');
+  const cAccBox = pick('Net Accessory per Box');
+  const cAccMob = pick('Net Accessory per Mobile 20 Pts', 'Net Accessory  per Mobile 20 Pts', 'Net Accessory  per Mobile');
+  const cNPS    = pick('Fiscal NPS');
+  const cGPRGU  = pick('GP/RGU');
+  const cHire   = pick('Hire Date');
+  const cNewRGU = pick('New RGU');
+  const cTotalScore = pick('Total Score');
+  const cGPRank   = pick('GP Rank');
+  const cMobRank  = pick('Mobile Prod Rank');
+  const cAccRank  = pick('Accessory Rank');
+  const cGPHrRank = pick('GP/Hr Rank');
+  const cNPSRank  = pick('NPS Rank');
+  const cMPRank   = pick('Mobile Plus Rank');
+
+  const reps = [];
+  for (let r = CONFIG.REP_RANK_HEADER_ROW; r < aoa.length; r++) {
+    const row = aoa[r];
+    if (!row || !row[cName]) continue;
+    const rec = {
+      rank: row[cRank] ?? null,
+      name: String(row[cName]).trim(),
+      title: row[cTitle] || '',
+      location: row[cLoc] || '',
+      dm: row[cDM] || '',
+      hours: row[cHours] ?? null,
+      gp: row[cGP] ?? null,
+      gpPerHr: row[cGPHr] ?? null,
+      mobileMTD: row[cMobMTD] ?? 0,
+      tabletMTD: row[cTabMTD] ?? 0,
+      watchesMTD: row[cWchMTD] ?? 0,
+      grossMobileSalesMTD: row[cGrossMob] ?? 0,
+      hsi: row[cHSI] ?? 0,
+      accessoryDollars: row[cAcc$] ?? 0,
+      accessoryPerBox: row[cAccBox] ?? null,
+      accessoryPerMobile: row[cAccMob] ?? null,
+      nps: row[cNPS] ?? null,
+      gpPerRGU: row[cGPRGU] ?? null,
+      hireDate: row[cHire] ?? null,
+      newRGU: row[cNewRGU] ?? 0,
+      totalScore: row[cTotalScore] ?? null,
+      gpRank: row[cGPRank] ?? null,
+      mobRank: row[cMobRank] ?? null,
+      accRank: row[cAccRank] ?? null,
+      gpHrRank: row[cGPHrRank] ?? null,
+      npsRank: row[cNPSRank] ?? null,
+      mpRank: row[cMPRank] ?? null,
+    };
+    reps.push(rec);
+  }
+  STATE.reps = reps;
+}
+
+function parseShopperTrack(buf) {
+  const wb = XLSX.read(buf, { type: 'array' });
+  const ws = wb.Sheets['Summary'];
+  if (!ws) return;
+  const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
+
+  // Find the header row containing "Location" and "MTD Avg Traffic"
+  let headerRowIdx = -1;
+  for (let i = 0; i < Math.min(aoa.length, 25); i++) {
+    const row = aoa[i] || [];
+    if (row.includes('Location') && row.includes('MTD Avg Traffic')) {
+      headerRowIdx = i; break;
+    }
+  }
+  if (headerRowIdx === -1) return;
+
+  const header = aoa[headerRowIdx];
+  const cLoc   = header.indexOf('Location');
+  const cMTD   = header.indexOf('MTD Avg Traffic');
+  const cTraf  = header.indexOf('Traffic');
+
+  STATE.shoppertrack = {};
+  for (let r = headerRowIdx + 1; r < aoa.length; r++) {
+    const row = aoa[r];
+    if (!row) continue;
+    const loc = row[cLoc];
+    if (!loc) continue;
+    STATE.shoppertrack[loc] = {
+      mtdAvgTraffic: row[cMTD] ?? null,
+      traffic:       row[cTraf] ?? null,
+    };
+  }
+}
+
+/* ---------- UI POPULATION ---------- */
+function populateStoreDropdown() {
+  const sel = $('storeSelect');
+  sel.innerHTML = '<option value="">— Select a store —</option>';
+  (STATE.directory.stores || []).slice().sort().forEach(s => {
+    const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o);
+  });
+  sel.addEventListener('change', onStoreChange);
+  $('employeeSelect').addEventListener('change', onEmployeeChange);
+  $('btnGenerate').addEventListener('click', onGenerate);
+  $('btnDownload').addEventListener('click', onDownloadPDF);
+  $('btnPrint').addEventListener('click', () => window.print());
+  $('btnSubmit').addEventListener('click', onSubmit);
+}
+
+function onStoreChange() {
+  const store = $('storeSelect').value;
+  STATE.selectedStore = store;
+  if (!store) return;
+
+  const dir = STATE.directory;
+  $('storeMgrName').value  = (dir.storeManagerNames && dir.storeManagerNames[store]) || '';
+  $('storeMgrEmail').value = (dir.storeManagers && dir.storeManagers[store]) || '';
+  $('dmEmail').value       = (dir.storeDMs && dir.storeDMs[store]) || '';
+
+  // ShopperTrack lookup using stripped name
+  const short = stripXfinity(store);
+  const st = STATE.shoppertrack[short];
+  if (st && st.mtdAvgTraffic != null) {
+    $('dailyShopperTrack').value = Number(st.mtdAvgTraffic).toFixed(1);
+  } else {
+    $('dailyShopperTrack').value = '';
+  }
+
+  // Populate employee dropdown for this store
+  const reps = STATE.reps.filter(r => r.location === short);
+  const emp = $('employeeSelect');
+  emp.innerHTML = '<option value="">— Select employee —</option>';
+  reps.sort((a,b) => (a.rank ?? 1e9) - (b.rank ?? 1e9));
+  reps.forEach(r => {
+    const o = document.createElement('option');
+    o.value = r.name;
+    o.textContent = `${r.name}  (#${r.rank ?? '?'} · ${r.title || ''})`;
+    emp.appendChild(o);
+  });
+  emp.disabled = reps.length === 0;
+  $('numEmployees').value = reps.length;
+
+  STATE.selectedEmployee = null;
+  clearMTDFields();
+}
+
+function clearMTDFields() {
+  ['empNPS','empTSheets','empXM','empRGUs','empWatchTab','empAccDollars','empInternet','empTriples','empQuads','overallGrade','companyRank']
+    .forEach(id => $(id).value = '');
+}
+
+function onEmployeeChange() {
+  const name = $('employeeSelect').value;
+  const rep = STATE.reps.find(r => r.name === name && r.location === stripXfinity(STATE.selectedStore));
+  STATE.selectedEmployee = rep || null;
+  if (!rep) { clearMTDFields(); return; }
+
+  // Auto-fill MTD numbers we can pull
+  $('empXM').value         = rep.grossMobileSalesMTD ?? '';
+  $('empRGUs').value       = rep.newRGU ?? '';
+  $('empWatchTab').value   = (Number(rep.watchesMTD || 0) + Number(rep.tabletMTD || 0));
+  $('empAccDollars').value = rep.accessoryDollars != null ? Number(rep.accessoryDollars).toFixed(2) : '';
+  $('empInternet').value   = rep.hsi ?? '';
+  if (rep.nps != null && $('empNPS').value === '') {
+    $('empNPS').value = rep.nps; // pre-fill, manager can override
+  }
+
+  // Company rank + auto-letter grade
+  $('companyRank').value = rep.rank != null ? `#${rep.rank} of ${STATE.reps.length}` : '';
+  const grade = autoGrade(rep);
+  $('overallGrade').value = grade;
+
+  // Auto-suggest strengths/areas
+  autoFillCoaching(rep);
+}
+
+/* ---------- Grade calc ---------- */
+function autoGrade(rep) {
+  if (rep.rank == null) return '';
+  const pct = rep.rank / STATE.reps.length; // smaller = better
+  if (pct <= 0.10) return 'A';
+  if (pct <= 0.25) return 'B';
+  if (pct <= 0.50) return 'C';
+  if (pct <= 0.75) return 'D';
+  return 'F';
+}
+
+/* ---------- Coaching auto-suggest ---------- */
+const RANK_CATEGORIES = [
+  { key: 'gpRank',   label: 'Gross Profit' },
+  { key: 'mobRank',  label: 'Mobile Productivity' },
+  { key: 'accRank',  label: 'Accessory Attach' },
+  { key: 'gpHrRank', label: 'GP per Hour' },
+  { key: 'npsRank',  label: 'NPS / Customer Satisfaction' },
+  { key: 'mpRank',   label: 'Mobile Plus Mix' },
+];
+
+function autoFillCoaching(rep) {
+  const total = STATE.reps.length;
+  const cats = RANK_CATEGORIES
+    .filter(c => rep[c.key] != null && rep[c.key] > 0)
+    .map(c => ({ ...c, rank: rep[c.key], pct: rep[c.key] / total }));
+  cats.sort((a,b) => a.rank - b.rank);
+  const strengths = cats.slice(0, 2).map(c => `• ${c.label} — ranked #${c.rank} of ${total}`).join('\n');
+  const areas = cats.slice(-2).reverse().map(c => `• ${c.label} — ranked #${c.rank} of ${total} (room to grow)`).join('\n');
+  if ($('strengths').value === '') $('strengths').value = strengths;
+  if ($('areas').value === '')     $('areas').value = areas;
+}
+
+/* ---------- Generate Scorecard ---------- */
+function bucketForRank(rank, total) {
+  if (!rank || !total) return { cls: 'rank-mid', label: '—' };
+  const pct = rank / total;
+  if (pct <= 0.10) return { cls: 'rank-top',    label: 'Top 10%' };
+  if (pct <= 0.25) return { cls: 'rank-strong', label: 'Top 25%' };
+  if (pct <= 0.50) return { cls: 'rank-mid',    label: 'Top 50%' };
+  if (pct <= 0.75) return { cls: 'rank-low',    label: 'Bottom 50%' };
+  return { cls: 'rank-bottom', label: 'Bottom 25%' };
+}
+
+function companyStatsForMetric(getter) {
+  const vals = STATE.reps.map(getter).filter(v => v != null && !isNaN(v));
+  if (!vals.length) return { avg: null, max: null };
+  const sum = vals.reduce((a,b) => a + Number(b), 0);
+  return { avg: sum / vals.length, max: Math.max(...vals.map(Number)) };
+}
+
+function onGenerate() {
+  const rep = STATE.selectedEmployee;
+  if (!rep) {
+    setStatus($('submitStatus'), 'Please select a store and an employee first.', 'error');
+    return;
+  }
+  clearStatus($('submitStatus'));
+
+  const store = STATE.selectedStore;
+  const grade = $('overallGrade').value || autoGrade(rep) || 'C';
+  STATE.gradeForReport = grade;
+
+  // Header
+  $('scHeaderTitle').textContent = `${rep.name} — ${grade}`;
+  $('scHeaderWho').textContent = `${rep.title || 'Sales'} · ${store} · Coaching as of ${new Date().toLocaleDateString()}`;
+
+  const badge = $('scGradeBadge');
+  badge.textContent = grade;
+  badge.className = 'grade-badge grade-' + grade;
+
+  // Employee card
+  $('scName').textContent = rep.name;
+  $('scTitle').textContent = rep.title || '—';
+  $('scStore').textContent = store;
+  const hire = rep.hireDate ? new Date(rep.hireDate).toLocaleDateString() : '—';
+  $('scHire').textContent = hire;
+  $('scHours').textContent = rep.hours != null ? Number(rep.hours).toFixed(1) : '—';
+
+  // Company Ranking card
+  const total = STATE.reps.length;
+  const pct = rep.rank ? rep.rank / total : null;
+  $('scRank').textContent = rep.rank ? `#${rep.rank} of ${total}` : '—';
+  $('scPct').textContent  = pct ? `Top ${(pct * 100).toFixed(1)}%` : '—';
+  $('scPctFill').style.width = pct ? ((1 - pct) * 100).toFixed(1) + '%' : '0%';
+  $('scTotalScore').textContent = rep.totalScore != null ? Number(rep.totalScore).toFixed(1) : '—';
+  $('scGPHr').textContent = rep.gpPerHr != null ? fmtMoney(rep.gpPerHr) : '—';
+
+  // Metrics table
+  const rows = buildMetricRows(rep);
+  STATE.metricsForReport = rows;
+  const tbody = $('scMetricRows');
+  tbody.innerHTML = '';
+  rows.forEach(r => {
+    const bucket = bucketForRank(r.rank, total);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.label}</td>
+      <td class="num">${r.you}</td>
+      <td class="num">${r.avg}</td>
+      <td class="num">${r.top}</td>
+      <td>${r.rank ? `#${r.rank} of ${total} ` : '—'}<span class="rank-pill ${bucket.cls}">${bucket.label}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Manual metrics card
+  $('scNPS').textContent     = $('empNPS').value || '—';
+  $('scTSheets').textContent = $('empTSheets').value || '—';
+  $('scTriples').textContent = $('empTriples').value || '—';
+  $('scQuads').textContent   = $('empQuads').value || '—';
+
+  // Store context
+  $('scStore2').textContent = store;
+  $('scStoreMgr').textContent = $('storeMgrName').value || '—';
+  $('scTraffic').textContent = $('dailyShopperTrack').value ? fmtNum($('dailyShopperTrack').value, 1) : '—';
+  $('scStaff').textContent   = $('numEmployees').value || '—';
+
+  // Coaching
+  const strengthsTags = $('scStrengthsTags');
+  const areasTags = $('scAreasTags');
+  strengthsTags.innerHTML = '';
+  areasTags.innerHTML = '';
+  const cats = RANK_CATEGORIES
+    .filter(c => rep[c.key] != null && rep[c.key] > 0)
+    .map(c => ({ ...c, rank: rep[c.key] }))
+    .sort((a,b) => a.rank - b.rank);
+  cats.slice(0, 3).forEach(c => {
+    const s = document.createElement('span'); s.className = 'tag';
+    s.textContent = `${c.label} · #${c.rank}`; strengthsTags.appendChild(s);
+  });
+  cats.slice(-3).reverse().forEach(c => {
+    const s = document.createElement('span'); s.className = 'tag';
+    s.textContent = `${c.label} · #${c.rank}`; areasTags.appendChild(s);
+  });
+
+  $('scStrengthsText').textContent = $('strengths').value || '';
+  $('scAreasText').textContent     = $('areas').value || '';
+  const notes = $('notes').value || '';
+  if (notes.trim()) { $('scNotesBlock').style.display = ''; $('scNotes').textContent = notes; }
+  else $('scNotesBlock').style.display = 'none';
+
+  // Footer (coaching manager = the store manager from the directory)
+  const coachingMgr = $('storeMgrName').value || $('storeMgrEmail').value || 'store manager';
+  $('scFooterMeta').textContent =
+    `Generated ${new Date().toLocaleString()} · Coaching by ${coachingMgr}`;
+
+  // Show + enable downstream actions
+  $('scorecard').classList.add('show');
+  $('btnDownload').disabled = false;
+  $('btnPrint').disabled = false;
+  $('btnSubmit').disabled = false;
+  $('scorecard').scrollIntoView({ behavior: 'smooth' });
+}
+
+function buildMetricRows(rep) {
+  const total = STATE.reps.length;
+
+  // For each metric: { label, you, avg, top, rank }
+  const list = [
+    { label: 'Gross Profit ($)',    getter: r => r.gp,              fmt: fmtMoney, rankKey: 'gpRank' },
+    { label: 'GP per Hour',         getter: r => r.gpPerHr,         fmt: fmtMoney, rankKey: 'gpHrRank' },
+    { label: 'Gross Mobile Sales',  getter: r => r.grossMobileSalesMTD, fmt: (n) => fmtNum(n), rankKey: 'mobRank' },
+    { label: 'New RGUs',            getter: r => r.newRGU,          fmt: (n) => fmtNum(n), rankKey: null },
+    { label: 'Internet (HSI)',      getter: r => r.hsi,             fmt: (n) => fmtNum(n), rankKey: null },
+    { label: 'Tablets',             getter: r => r.tabletMTD,       fmt: (n) => fmtNum(n), rankKey: null },
+    { label: 'Watches',             getter: r => r.watchesMTD,      fmt: (n) => fmtNum(n), rankKey: null },
+    { label: 'Accessory Dollars',   getter: r => r.accessoryDollars,fmt: fmtMoney, rankKey: 'accRank' },
+    { label: 'Accessory $/Box',     getter: r => r.accessoryPerBox, fmt: fmtMoney, rankKey: null },
+    { label: 'NPS',                 getter: r => r.nps,             fmt: (n) => fmtPct(n, 0), rankKey: 'npsRank' },
+  ];
+
+  return list.map(m => {
+    const stats = companyStatsForMetric(m.getter);
+    const you = m.getter(rep);
+    return {
+      label: m.label,
+      you: you == null ? '—' : m.fmt(you),
+      avg: stats.avg == null ? '—' : m.fmt(stats.avg),
+      top: stats.max == null ? '—' : m.fmt(stats.max),
+      rank: m.rankKey ? rep[m.rankKey] : null,
+    };
+  });
+}
+
+/* ---------- PDF generation ---------- */
+async function makePDF() {
+  const el = $('scorecard');
+  const opt = {
+    margin: 8,
+    filename: `Scorecard_${(STATE.selectedEmployee?.name || 'employee').replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`,
+    image: { type: 'jpeg', quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+    jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' }
+  };
+  // Render once, then extract both blob + base64 from the same jsPDF object.
+  const pdf = await html2pdf().set(opt).from(el).toPdf().get('pdf');
+  const blob = pdf.output('blob');
+  const dataUri = pdf.output('datauristring'); // "data:application/pdf;base64,..."
+  return { blob, dataUri, filename: opt.filename };
+}
+
+async function onDownloadPDF() {
+  const btn = $('btnDownload');
+  btn.disabled = true; btn.textContent = '⏳ Generating PDF…';
+  try {
+    const { blob, filename } = await makePDF();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 200);
+  } finally {
+    btn.disabled = false; btn.textContent = '⬇️ Download PDF';
+  }
+}
+
+/* ---------- Build the HTML body emailed via Zapier ---------- */
+function buildEmailHTML(rep, grade) {
+  const total = STATE.reps.length;
+  const pct = rep.rank ? rep.rank / total : null;
+  const rows = STATE.metricsForReport || [];
+  const rowsHtml = rows.map(r => `
+    <tr>
+      <td style="padding:8px;border-bottom:1px solid #eee;">${r.label}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">${r.you}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;color:#555;">${r.avg}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;color:#555;">${r.top}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;">${r.rank ? '#' + r.rank + ' of ' + total : '—'}</td>
+    </tr>
+  `).join('');
+
+  return `
+  <div style="font-family:Arial,Helvetica,sans-serif; max-width:720px; margin:0 auto; color:#0e2742;">
+    <div style="background:#0a2a52; color:#fff; padding:20px 24px; border-radius:10px 10px 0 0; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div style="color:#f6a01b; font-size:20px; font-weight:bold;">Employee Scorecard</div>
+        <div style="font-size:14px; margin-top:4px;">${rep.name} · ${rep.title || 'Sales'} · ${STATE.selectedStore}</div>
+        <div style="font-size:12px; opacity:.8; margin-top:4px;">Generated ${new Date().toLocaleString()}</div>
+      </div>
+      <div style="background:#f6a01b; color:#1a1a1a; width:64px; height:64px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:32px; font-weight:bold;">${grade}</div>
+    </div>
+
+    <div style="background:#fff; padding:20px 24px; border:1px solid #e0eaf6; border-top:0;">
+      <p style="margin:0 0 12px;">
+        <b>Company Rank:</b> ${rep.rank ? '#' + rep.rank + ' of ' + total : '—'} ${pct ? '(Top ' + (pct*100).toFixed(1) + '%)' : ''}
+      </p>
+      <table style="width:100%; border-collapse:collapse; font-size:14px;">
+        <thead>
+          <tr style="background:#f1f6fd; text-align:left;">
+            <th style="padding:8px;">Category</th>
+            <th style="padding:8px; text-align:right;">Your #</th>
+            <th style="padding:8px; text-align:right;">Company Avg</th>
+            <th style="padding:8px; text-align:right;">Top Performer</th>
+            <th style="padding:8px;">National Rank</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+
+      <h3 style="color:#0a2a52;margin-top:20px;">Manual Metrics</h3>
+      <ul style="padding-left:18px;line-height:1.6;">
+        <li>NPS: ${$('empNPS').value || '—'}</li>
+        <li>T-Sheets MTD: ${$('empTSheets').value || '—'}</li>
+        <li>Triple Plays: ${$('empTriples').value || '—'}</li>
+        <li>Quad Plays: ${$('empQuads').value || '—'}</li>
+      </ul>
+
+      <h3 style="color:#0a2a52;">Strengths</h3>
+      <div style="white-space:pre-wrap; background:#f4f8fd; padding:10px; border-radius:6px;">${($('strengths').value || '').replace(/</g,'&lt;')}</div>
+
+      <h3 style="color:#0a2a52;">Areas to Improve</h3>
+      <div style="white-space:pre-wrap; background:#fff1e8; padding:10px; border-radius:6px;">${($('areas').value || '').replace(/</g,'&lt;')}</div>
+
+      ${$('notes').value ? `<h3 style="color:#0a2a52;">Additional Coaching Notes</h3>
+      <div style="white-space:pre-wrap;">${$('notes').value.replace(/</g,'&lt;')}</div>` : ''}
+
+      <p style="margin-top:24px; font-size:12px; color:#486490;">
+        Coaching conversation conducted by ${$('storeMgrName').value || $('storeMgrEmail').value || 'store manager'} on ${new Date().toLocaleDateString()}.
+      </p>
+    </div>
+  </div>`;
+}
+
+/* ---------- Submit to Zapier ---------- */
+async function onSubmit() {
+  const rep = STATE.selectedEmployee;
+  if (!rep) { setStatus($('submitStatus'), 'Generate the scorecard first.', 'error'); return; }
+
+  const btn = $('btnSubmit');
+  btn.disabled = true; btn.textContent = '⏳ Sending…';
+  setStatus($('submitStatus'), 'Generating PDF and submitting to Zapier…', '');
+
+  try {
+    const { dataUri, filename } = await makePDF();
+    // dataUri = "data:application/pdf;base64,JVBERi0xLjQK..."
+    const base64 = dataUri.split(',')[1];
+    const grade = STATE.gradeForReport || $('overallGrade').value || 'C';
+    const total = STATE.reps.length;
+    const empEmail = (rep.name || '').toLowerCase().replace(/\s+/g, '.') + '@blufoxmobile.com';
+
+    const payload = {
+      // Routing — manager identity comes from the store directory (store manager for this store)
+      employee_name: rep.name,
+      employee_email_guess: empEmail,                   // Zap can override with real lookup
+      manager_name: $('storeMgrName').value,            // store manager = coaching manager
+      manager_email: $('storeMgrEmail').value,
+      store_manager_name: $('storeMgrName').value,
+      store_manager_email: $('storeMgrEmail').value,
+      district_manager_email: $('dmEmail').value,
+
+      // Context
+      store: STATE.selectedStore,
+      store_short: stripXfinity(STATE.selectedStore),
+      generated_at: new Date().toISOString(),
+
+      // Grade & rank
+      grade: grade,
+      company_rank: rep.rank,
+      company_rank_total: total,
+      percentile: rep.rank ? Math.round((rep.rank / total) * 100) : null,
+
+      // All metrics (so Zap can write to a Google Sheet log)
+      metrics: {
+        gp_dollars: rep.gp,
+        gp_per_hour: rep.gpPerHr,
+        gross_mobile_sales_mtd: rep.grossMobileSalesMTD,
+        new_rgu: rep.newRGU,
+        hsi: rep.hsi,
+        tablet_mtd: rep.tabletMTD,
+        watches_mtd: rep.watchesMTD,
+        accessory_dollars: rep.accessoryDollars,
+        accessory_per_box: rep.accessoryPerBox,
+        nps_from_report: rep.nps,
+        total_score: rep.totalScore,
+      },
+      manual_inputs: {
+        nps: $('empNPS').value,
+        t_sheets_mtd: $('empTSheets').value,
+        triple_plays_mtd: $('empTriples').value,
+        quad_plays_mtd: $('empQuads').value,
+        watches_tablets_combined_mtd: $('empWatchTab').value,
+        daily_shopper_track_avg: $('dailyShopperTrack').value,
+        store_headcount: $('numEmployees').value,
+      },
+      category_ranks: {
+        gp_rank: rep.gpRank,
+        mobile_prod_rank: rep.mobRank,
+        accessory_rank: rep.accRank,
+        gp_hr_rank: rep.gpHrRank,
+        nps_rank: rep.npsRank,
+        mobile_plus_rank: rep.mpRank,
+      },
+
+      // Coaching
+      strengths: $('strengths').value,
+      areas_to_improve: $('areas').value,
+      additional_notes: $('notes').value,
+
+      // Email content
+      email_subject: `Scorecard — ${rep.name} (${grade}) — ${STATE.selectedStore}`,
+      email_body_html: buildEmailHTML(rep, grade),
+
+      // Attachment (use file/url field in Zap to attach)
+      pdf_filename: filename,
+      pdf_base64: base64,
+    };
+
+    const resp = await fetch(CONFIG.ZAPIER_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) throw new Error('Zapier returned HTTP ' + resp.status);
+
+    setStatus($('submitStatus'),
+      '✓ Scorecard submitted. Zapier will email the employee, store manager, and DM with the PDF attached.',
+      'success'
+    );
+  } catch (e) {
+    console.error(e);
+    setStatus($('submitStatus'), 'Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '📧 Submit & Email';
+  }
+}
+
+/* ---------- boot ---------- */
+loadAll();
+</script>
+</body>
+</html>
