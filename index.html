@@ -283,6 +283,13 @@
   .rank-low { background: #ffe1d6; color: #993300; }
   .rank-bottom { background: #ffd6d6; color: #8a1a1a; }
 
+  /* Goal achievement coloring */
+  .goal-hit    { color: #136c3f; font-weight: 700; }     /* ≥ 100% */
+  .goal-close  { color: #8a5a00; font-weight: 700; }     /* 75–99% */
+  .goal-miss   { color: #993300; font-weight: 700; }     /* < 75% */
+  .gap-pos     { color: #136c3f; }
+  .gap-neg     { color: #993300; }
+
   .pct-bar { background: #eaf0fa; height: 8px; border-radius: 6px; overflow: hidden; margin-top: 6px; }
   .pct-fill { height: 100%; background: linear-gradient(90deg, var(--bf-orange), var(--bf-green)); }
 
@@ -484,33 +491,57 @@
       </div>
 
       <div class="sc-card">
-        <h3>Performance by Category (Month-to-Date)</h3>
+        <h3>Goal Tracking (Month-to-Date)</h3>
+        <div id="scGoalContext" style="font-size:13px; color:var(--bf-text-soft); margin-bottom:8px;"></div>
+        <table class="metric-table">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th class="num">Your Goal</th>
+              <th class="num">Your Actual</th>
+              <th class="num">% to Goal</th>
+              <th class="num">Gap</th>
+            </tr>
+          </thead>
+          <tbody id="scGoalRows"></tbody>
+        </table>
+      </div>
+
+      <div class="sc-card">
+        <h3>National Ranking — How Close to the Top</h3>
         <table class="metric-table">
           <thead>
             <tr>
               <th>Category</th>
               <th class="num">Your #</th>
-              <th class="num">Company Avg</th>
               <th class="num">Top Performer</th>
-              <th>National Rank</th>
+              <th class="num">% of Top</th>
+              <th>Your Rank</th>
             </tr>
           </thead>
-          <tbody id="scMetricRows"></tbody>
+          <tbody id="scRankRows"></tbody>
         </table>
       </div>
 
       <div class="sc-row">
+        <div class="sc-card" id="scNPSCard">
+          <h3>NPS — Store vs. Employee</h3>
+          <div class="sc-kv"><span class="k">Store NPS (from Sales Report)</span><span class="v" id="scStoreNPS">—</span></div>
+          <div class="sc-kv"><span class="k">Company avg store NPS</span><span class="v" id="scStoreNPSAvg">—</span></div>
+          <div class="sc-kv"><span class="k">Your store rank</span><span class="v" id="scStoreNPSRank">—</span></div>
+          <div style="border-top:1px solid #eaf0fa; margin:10px 0;"></div>
+          <div class="sc-kv"><span class="k">Your personal NPS (entered)</span><span class="v" id="scEmpNPS">—</span></div>
+          <div class="sc-kv"><span class="k">vs. company avg store NPS</span><span class="v" id="scEmpNPSDelta">—</span></div>
+        </div>
         <div class="sc-card">
-          <h3>Manual Metrics (entered by manager)</h3>
-          <div class="sc-kv"><span class="k">NPS</span><span class="v" id="scNPS">—</span></div>
+          <h3>Manual Metrics &amp; Store Context</h3>
           <div class="sc-kv"><span class="k">T-Sheets MTD</span><span class="v" id="scTSheets">—</span></div>
           <div class="sc-kv"><span class="k">Triple Plays MTD</span><span class="v" id="scTriples">—</span></div>
           <div class="sc-kv"><span class="k">Quad Plays MTD</span><span class="v" id="scQuads">—</span></div>
-        </div>
-        <div class="sc-card">
-          <h3>Store Context</h3>
+          <div style="border-top:1px solid #eaf0fa; margin:10px 0;"></div>
           <div class="sc-kv"><span class="k">Store</span><span class="v" id="scStore2">—</span></div>
           <div class="sc-kv"><span class="k">Store Manager</span><span class="v" id="scStoreMgr">—</span></div>
+          <div class="sc-kv"><span class="k">Store MTD Traffic</span><span class="v" id="scTrafficMTD">—</span></div>
           <div class="sc-kv"><span class="k">Daily Shopper Track Avg</span><span class="v" id="scTraffic">—</span></div>
           <div class="sc-kv"><span class="k">Staff on Floor</span><span class="v" id="scStaff">—</span></div>
         </div>
@@ -570,10 +601,14 @@ const CONFIG = {
 const STATE = {
   directory: null,    // store-directory.json
   reps: [],           // array of rep objects (parsed)
-  shoppertrack: {},   // { 'Bourbonnais': { mtdAvgTraffic: 124.3, traffic: 4520 } }
+  shoppertrack: {},   // { 'Bourbonnais': { mtdAvgTraffic: 98.1, mtdTraffic: 2650 } }
+  storeNPS: {},       // { 'Bourbonnais': 1.0 } — Fiscal NPS at the store level
+  storeNPSStats: null,// { avg, top, sortedStoresByNPS: [{store, nps}], rank(store) }
+  repsByStore: {},    // { 'Bourbonnais': [rep, rep, ...] }
   selectedStore: null,
   selectedEmployee: null,
-  metricsForReport: null,  // computed table data for currently-selected employee
+  goalsForReport: null,    // computed Goal Tracking rows
+  rankingForReport: null,  // computed National Ranking rows
   gradeForReport: null,
 };
 
@@ -583,6 +618,23 @@ const stripXfinity = (s) => (s || '').replace(/\s*Xfinity Store\s*$/i, '').trim(
 const fmtMoney = (n) => (n == null || isNaN(n)) ? '—' : '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
 const fmtNum = (n, d = 0) => (n == null || isNaN(n)) ? '—' : Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
 const fmtPct = (n, d = 1) => (n == null || isNaN(n)) ? '—' : (Number(n) * 100).toFixed(d) + '%';
+function fmtHire(v) {
+  if (v == null || v === 0 || v === '') return '—';
+  const d = (v instanceof Date) ? v : new Date(v);
+  if (isNaN(d.getTime()) || d.getFullYear() < 1990) return '—';
+  return d.toLocaleDateString();
+}
+// Positive-framed rank label — never call anyone "bottom". Tells the manager
+// at a glance where this rep sits and what to coach toward.
+function rankLabel(rank, total) {
+  if (!rank || !total) return { cls: 'rank-mid', label: '—' };
+  const pct = rank / total;
+  if (pct <= 0.10) return { cls: 'rank-top',    label: 'Top Performer' };
+  if (pct <= 0.25) return { cls: 'rank-strong', label: 'Strong' };
+  if (pct <= 0.50) return { cls: 'rank-mid',    label: 'Above Middle' };
+  if (pct <= 0.75) return { cls: 'rank-low',    label: 'Building' };
+  return { cls: 'rank-bottom', label: 'Focus Area' };
+}
 
 function setStatus(el, msg, kind) {
   el.className = 'status show' + (kind ? ' ' + kind : '');
@@ -620,7 +672,7 @@ async function loadAll() {
 }
 
 function parseSalesReport(buf) {
-  const wb = XLSX.read(buf, { type: 'array' });
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true });
   const ws = wb.Sheets[CONFIG.REP_RANK_SHEET];
   if (!ws) throw new Error('Rep Rank sheet not found in Sales Report.xlsx');
 
@@ -703,6 +755,36 @@ function parseSalesReport(buf) {
     reps.push(rec);
   }
   STATE.reps = reps;
+
+  // Index reps by store (for headcount + employee dropdown)
+  STATE.repsByStore = {};
+  reps.forEach(r => {
+    if (!r.location) return;
+    (STATE.repsByStore[r.location] = STATE.repsByStore[r.location] || []).push(r);
+  });
+
+  // Build store-level NPS index. The "Fiscal NPS" column on Rep Rank is the
+  // store-level NPS — every rep at the same location carries the same value —
+  // so dedupe and rank stores against each other.
+  STATE.storeNPS = {};
+  reps.forEach(r => {
+    if (r.location && r.nps != null && typeof r.nps === 'number' && !(r.location in STATE.storeNPS)) {
+      STATE.storeNPS[r.location] = r.nps;
+    }
+  });
+  const sortedStores = Object.entries(STATE.storeNPS)
+    .filter(([, v]) => v != null && typeof v === 'number')
+    .sort((a, b) => b[1] - a[1]); // highest NPS first
+  const vals = sortedStores.map(([, v]) => v);
+  STATE.storeNPSStats = {
+    avg: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null,
+    top: vals.length ? Math.max(...vals) : null,
+    total: vals.length,
+    rankOf(store) {
+      const idx = sortedStores.findIndex(([s]) => s === store);
+      return idx === -1 ? null : idx + 1;
+    },
+  };
 }
 
 function parseShopperTrack(buf) {
@@ -734,7 +816,7 @@ function parseShopperTrack(buf) {
     if (!loc) continue;
     STATE.shoppertrack[loc] = {
       mtdAvgTraffic: row[cMTD] ?? null,
-      traffic:       row[cTraf] ?? null,
+      mtdTraffic:    row[cTraf] ?? null,   // MTD TOTAL traffic — used for goal math
     };
   }
 }
@@ -764,21 +846,16 @@ function onStoreChange() {
   $('storeMgrEmail').value = (dir.storeManagers && dir.storeManagers[store]) || '';
   $('dmEmail').value       = (dir.storeDMs && dir.storeDMs[store]) || '';
 
-  // ShopperTrack lookup using stripped name
   const short = stripXfinity(store);
   const st = STATE.shoppertrack[short];
-  if (st && st.mtdAvgTraffic != null) {
-    $('dailyShopperTrack').value = Number(st.mtdAvgTraffic).toFixed(1);
-  } else {
-    $('dailyShopperTrack').value = '';
-  }
+  // Display daily avg; goal math uses the MTD total separately.
+  $('dailyShopperTrack').value = (st && st.mtdAvgTraffic != null) ? Number(st.mtdAvgTraffic).toFixed(1) : '';
 
   // Populate employee dropdown for this store
-  const reps = STATE.reps.filter(r => r.location === short);
+  const reps = STATE.repsByStore[short] || [];
   const emp = $('employeeSelect');
   emp.innerHTML = '<option value="">— Select employee —</option>';
-  reps.sort((a,b) => (a.rank ?? 1e9) - (b.rank ?? 1e9));
-  reps.forEach(r => {
+  reps.slice().sort((a,b) => (a.rank ?? 1e9) - (b.rank ?? 1e9)).forEach(r => {
     const o = document.createElement('option');
     o.value = r.name;
     o.textContent = `${r.name}  (#${r.rank ?? '?'} · ${r.title || ''})`;
@@ -789,6 +866,32 @@ function onStoreChange() {
 
   STATE.selectedEmployee = null;
   clearMTDFields();
+}
+
+// === GOAL MATH ===
+// Per-employee MTD goals derived from store traffic + headcount.
+//   XM (Mobile):         7%  of store traffic ÷ # reps
+//   Watches + Tablets:   2%  of store traffic ÷ # reps
+//   T-Sheet presentations: 20% of store traffic ÷ # reps
+//   RGUs:                10% of store traffic ÷ # reps
+//   Accessory dollars:   $30 × this rep's actual XM sold
+function computeGoals(rep) {
+  const short = stripXfinity(STATE.selectedStore || '');
+  const st = STATE.shoppertrack[short] || {};
+  const T = Number(st.mtdTraffic) || 0;
+  const N = (STATE.repsByStore[short] || []).length || 1;
+  const xmActual = Number(rep.grossMobileSalesMTD) || 0;
+  return {
+    storeTraffic: T,
+    storeHeadcount: N,
+    perEmpTraffic: T / N,
+    xm:      0.07 * T / N,
+    watTab:  0.02 * T / N,
+    tsheet:  0.20 * T / N,
+    rgu:     0.10 * T / N,
+    accessoryDollars: 30 * xmActual,
+    accessoryPerXM: 30,
+  };
 }
 
 function clearMTDFields() {
@@ -855,21 +958,30 @@ function autoFillCoaching(rep) {
 }
 
 /* ---------- Generate Scorecard ---------- */
-function bucketForRank(rank, total) {
-  if (!rank || !total) return { cls: 'rank-mid', label: '—' };
-  const pct = rank / total;
-  if (pct <= 0.10) return { cls: 'rank-top',    label: 'Top 10%' };
-  if (pct <= 0.25) return { cls: 'rank-strong', label: 'Top 25%' };
-  if (pct <= 0.50) return { cls: 'rank-mid',    label: 'Top 50%' };
-  if (pct <= 0.75) return { cls: 'rank-low',    label: 'Bottom 50%' };
-  return { cls: 'rank-bottom', label: 'Bottom 25%' };
-}
-
 function companyStatsForMetric(getter) {
   const vals = STATE.reps.map(getter).filter(v => v != null && !isNaN(v));
   if (!vals.length) return { avg: null, max: null };
   const sum = vals.reduce((a,b) => a + Number(b), 0);
   return { avg: sum / vals.length, max: Math.max(...vals.map(Number)) };
+}
+
+// Pretty-format "% to goal" with achievement coloring + emoji marker
+function fmtToGoal(actual, goal) {
+  if (goal == null || goal === 0 || isNaN(goal)) return { text: '—', cls: '' };
+  const pct = actual / goal;
+  const cls = pct >= 1 ? 'goal-hit' : (pct >= 0.75 ? 'goal-close' : 'goal-miss');
+  const mark = pct >= 1 ? ' ✓' : '';
+  return { text: (pct * 100).toFixed(0) + '%' + mark, cls };
+}
+function fmtGap(actual, goal, isMoney) {
+  if (goal == null || isNaN(goal)) return { text: '—', cls: '' };
+  const gap = actual - goal;
+  const sign = gap > 0 ? '+' : '';
+  const text = sign + (isMoney ? '$' + Math.abs(gap).toFixed(2) * Math.sign(gap || 1) : Math.round(gap));
+  const display = isMoney
+    ? (gap >= 0 ? `+$${gap.toFixed(2)}` : `−$${Math.abs(gap).toFixed(2)}`)
+    : (gap >= 0 ? `+${Math.round(gap)}` : `−${Math.abs(Math.round(gap))}`);
+  return { text: display, cls: gap >= 0 ? 'gap-pos' : 'gap-neg' };
 }
 
 function onGenerate() {
@@ -896,9 +1008,9 @@ function onGenerate() {
   $('scName').textContent = rep.name;
   $('scTitle').textContent = rep.title || '—';
   $('scStore').textContent = store;
-  const hire = rep.hireDate ? new Date(rep.hireDate).toLocaleDateString() : '—';
-  $('scHire').textContent = hire;
+  $('scHire').textContent = fmtHire(rep.hireDate);
   $('scHours').textContent = rep.hours != null ? Number(rep.hours).toFixed(1) : '—';
+  const short = stripXfinity(store);
 
   // Company Ranking card
   const total = STATE.reps.length;
@@ -909,33 +1021,88 @@ function onGenerate() {
   $('scTotalScore').textContent = rep.totalScore != null ? Number(rep.totalScore).toFixed(1) : '—';
   $('scGPHr').textContent = rep.gpPerHr != null ? fmtMoney(rep.gpPerHr) : '—';
 
-  // Metrics table
-  const rows = buildMetricRows(rep);
-  STATE.metricsForReport = rows;
-  const tbody = $('scMetricRows');
-  tbody.innerHTML = '';
-  rows.forEach(r => {
-    const bucket = bucketForRank(r.rank, total);
+  // ---------- Goal Tracking table ----------
+  const goals = computeGoals(rep);
+  const tshActual = Number($('empTSheets').value) || 0;
+  const goalRows = [
+    { label: 'XM (Mobile) — 7% of traffic',     goal: goals.xm,     actual: Number(rep.grossMobileSalesMTD) || 0, fmt: 'num' },
+    { label: 'Watches + Tablets — 2% of traffic', goal: goals.watTab, actual: (Number(rep.watchesMTD)||0) + (Number(rep.tabletMTD)||0), fmt: 'num' },
+    { label: 'T-Sheets — 20% of traffic',         goal: goals.tsheet, actual: tshActual, fmt: 'num', actualNote: 'manual' },
+    { label: 'RGUs — 10% of traffic',             goal: goals.rgu,    actual: Number(rep.newRGU) || 0, fmt: 'num' },
+    { label: 'Accessories — $30 × XM sold',       goal: goals.accessoryDollars, actual: Number(rep.accessoryDollars) || 0, fmt: 'money' },
+  ];
+  STATE.goalsForReport = goalRows;
+
+  $('scGoalContext').innerHTML = goals.storeTraffic
+    ? `Store MTD traffic: <b>${fmtNum(goals.storeTraffic)}</b> · ÷ <b>${goals.storeHeadcount}</b> reps = <b>${fmtNum(goals.perEmpTraffic, 0)}</b> traffic per rep`
+    : 'Store traffic unavailable — goals cannot be calculated.';
+
+  const goalTbody = $('scGoalRows');
+  goalTbody.innerHTML = '';
+  goalRows.forEach(r => {
+    const goalFmt = r.fmt === 'money' ? fmtMoney(r.goal) : fmtNum(r.goal, 0);
+    const actFmt  = r.fmt === 'money' ? fmtMoney(r.actual) : fmtNum(r.actual, 0);
+    const toGoal = fmtToGoal(r.actual, r.goal);
+    const gap = fmtGap(r.actual, r.goal, r.fmt === 'money');
+    const note = r.actualNote ? `<span style="color:#999;font-size:11px;"> (${r.actualNote})</span>` : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.label}</td>
+      <td class="num">${goalFmt}</td>
+      <td class="num">${actFmt}${note}</td>
+      <td class="num ${toGoal.cls}">${toGoal.text}</td>
+      <td class="num ${gap.cls}">${gap.text}</td>
+    `;
+    goalTbody.appendChild(tr);
+  });
+
+  // ---------- National Ranking table ----------
+  const rankRows = buildRankingRows(rep);
+  STATE.rankingForReport = rankRows;
+  const rankTbody = $('scRankRows');
+  rankTbody.innerHTML = '';
+  rankRows.forEach(r => {
+    const bucket = rankLabel(r.rank, total);
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${r.label}</td>
       <td class="num">${r.you}</td>
-      <td class="num">${r.avg}</td>
       <td class="num">${r.top}</td>
+      <td class="num">${r.pctOfTop != null ? r.pctOfTop.toFixed(0) + '%' : '—'}</td>
       <td>${r.rank ? `#${r.rank} of ${total} ` : '—'}<span class="rank-pill ${bucket.cls}">${bucket.label}</span></td>
     `;
-    tbody.appendChild(tr);
+    rankTbody.appendChild(tr);
   });
 
-  // Manual metrics card
-  $('scNPS').textContent     = $('empNPS').value || '—';
+  // ---------- NPS card: store-level + employee-level ----------
+  const storeNPS = STATE.storeNPS[short];
+  const npsStats = STATE.storeNPSStats || {};
+  $('scStoreNPS').textContent    = storeNPS != null ? fmtPct(storeNPS, 0) : '—';
+  $('scStoreNPSAvg').textContent = npsStats.avg != null ? fmtPct(npsStats.avg, 1) : '—';
+  const storeRank = (npsStats.rankOf ? npsStats.rankOf(short) : null);
+  const storeRankLab = storeRank ? rankLabel(storeRank, npsStats.total) : null;
+  $('scStoreNPSRank').innerHTML = storeRank
+    ? `#${storeRank} of ${npsStats.total} <span class="rank-pill ${storeRankLab.cls}">${storeRankLab.label}</span>`
+    : '—';
+  const empNps = $('empNPS').value;
+  $('scEmpNPS').textContent = empNps ? (Number(empNps) > 1 ? empNps + '%' : fmtPct(Number(empNps), 0)) : '—';
+  if (empNps && npsStats.avg != null) {
+    const empNum = Number(empNps);
+    const empPct = empNum > 1 ? empNum / 100 : empNum;
+    const delta = empPct - npsStats.avg;
+    const sign = delta >= 0 ? '+' : '';
+    $('scEmpNPSDelta').innerHTML = `${sign}${(delta * 100).toFixed(1)} pts ${delta >= 0 ? '<span class="gap-pos">above</span>' : '<span class="gap-neg">below</span>'} company avg`;
+  } else {
+    $('scEmpNPSDelta').textContent = empNps ? 'company benchmark unavailable' : '—';
+  }
+
+  // Manual metrics + store context
   $('scTSheets').textContent = $('empTSheets').value || '—';
   $('scTriples').textContent = $('empTriples').value || '—';
   $('scQuads').textContent   = $('empQuads').value || '—';
-
-  // Store context
-  $('scStore2').textContent = store;
+  $('scStore2').textContent  = store;
   $('scStoreMgr').textContent = $('storeMgrName').value || '—';
+  $('scTrafficMTD').textContent = goals.storeTraffic ? fmtNum(goals.storeTraffic) : '—';
   $('scTraffic').textContent = $('dailyShopperTrack').value ? fmtNum($('dailyShopperTrack').value, 1) : '—';
   $('scStaff').textContent   = $('numEmployees').value || '—';
 
@@ -976,34 +1143,34 @@ function onGenerate() {
   $('scorecard').scrollIntoView({ behavior: 'smooth' });
 }
 
-function buildMetricRows(rep) {
-  const total = STATE.reps.length;
-
-  // For each metric: { label, you, avg, top, rank }
+// National ranking rows answer "how close to the best performer am I?"
+// — show actual number, top performer's number, % of top, and rank.
+function buildRankingRows(rep) {
   const list = [
-    { label: 'Gross Profit ($)',    getter: r => r.gp,              fmt: fmtMoney, rankKey: 'gpRank' },
-    { label: 'GP per Hour',         getter: r => r.gpPerHr,         fmt: fmtMoney, rankKey: 'gpHrRank' },
-    { label: 'Gross Mobile Sales',  getter: r => r.grossMobileSalesMTD, fmt: (n) => fmtNum(n), rankKey: 'mobRank' },
-    { label: 'New RGUs',            getter: r => r.newRGU,          fmt: (n) => fmtNum(n), rankKey: null },
-    { label: 'Internet (HSI)',      getter: r => r.hsi,             fmt: (n) => fmtNum(n), rankKey: null },
-    { label: 'Tablets',             getter: r => r.tabletMTD,       fmt: (n) => fmtNum(n), rankKey: null },
-    { label: 'Watches',             getter: r => r.watchesMTD,      fmt: (n) => fmtNum(n), rankKey: null },
-    { label: 'Accessory Dollars',   getter: r => r.accessoryDollars,fmt: fmtMoney, rankKey: 'accRank' },
-    { label: 'Accessory $/Box',     getter: r => r.accessoryPerBox, fmt: fmtMoney, rankKey: null },
-    { label: 'NPS',                 getter: r => r.nps,             fmt: (n) => fmtPct(n, 0), rankKey: 'npsRank' },
+    { label: 'Gross Profit ($)',         getter: r => r.gp,                  fmt: fmtMoney,             rankKey: 'gpRank' },
+    { label: 'GP per Hour',              getter: r => r.gpPerHr,             fmt: fmtMoney,             rankKey: 'gpHrRank' },
+    { label: 'Mobile Productivity (XM)', getter: r => r.grossMobileSalesMTD, fmt: (n) => fmtNum(n),     rankKey: 'mobRank' },
+    { label: 'New RGUs',                 getter: r => r.newRGU,              fmt: (n) => fmtNum(n),     rankKey: null },
+    { label: 'Internet (HSI)',           getter: r => r.hsi,                 fmt: (n) => fmtNum(n),     rankKey: null },
+    { label: 'Tablets',                  getter: r => r.tabletMTD,           fmt: (n) => fmtNum(n),     rankKey: null },
+    { label: 'Watches',                  getter: r => r.watchesMTD,          fmt: (n) => fmtNum(n),     rankKey: null },
+    { label: 'Accessory Dollars',        getter: r => r.accessoryDollars,    fmt: fmtMoney,             rankKey: 'accRank' },
+    { label: 'Accessory $ / Box',        getter: r => r.accessoryPerBox,     fmt: fmtMoney,             rankKey: null },
+    { label: 'Mobile Plus Mix',          getter: r => r.mpRank ? rep.mpRank : null, fmt: (n) => fmtNum(n), rankKey: 'mpRank', skipYou: true },
   ];
 
   return list.map(m => {
     const stats = companyStatsForMetric(m.getter);
     const you = m.getter(rep);
+    const pctOfTop = (you != null && stats.max && stats.max !== 0) ? (Number(you) / Number(stats.max)) * 100 : null;
     return {
       label: m.label,
-      you: you == null ? '—' : m.fmt(you),
-      avg: stats.avg == null ? '—' : m.fmt(stats.avg),
+      you: m.skipYou ? '—' : (you == null ? '—' : m.fmt(you)),
       top: stats.max == null ? '—' : m.fmt(stats.max),
+      pctOfTop: m.skipYou ? null : pctOfTop,
       rank: m.rankKey ? rep[m.rankKey] : null,
     };
-  });
+  }).filter(r => r.you !== '—' || r.rank); // drop totally empty rows
 }
 
 /* ---------- PDF generation ---------- */
@@ -1041,19 +1208,55 @@ async function onDownloadPDF() {
 function buildEmailHTML(rep, grade) {
   const total = STATE.reps.length;
   const pct = rep.rank ? rep.rank / total : null;
-  const rows = STATE.metricsForReport || [];
-  const rowsHtml = rows.map(r => `
-    <tr>
+  const short = stripXfinity(STATE.selectedStore || '');
+  const goals = STATE.goalsForReport || [];
+  const ranks = STATE.rankingForReport || [];
+
+  const goalRowsHtml = goals.map(r => {
+    const goalFmt = r.fmt === 'money' ? fmtMoney(r.goal) : fmtNum(r.goal, 0);
+    const actFmt  = r.fmt === 'money' ? fmtMoney(r.actual) : fmtNum(r.actual, 0);
+    const toGoal  = fmtToGoal(r.actual, r.goal);
+    const gap     = fmtGap(r.actual, r.goal, r.fmt === 'money');
+    const color   = toGoal.cls === 'goal-hit' ? '#136c3f' : (toGoal.cls === 'goal-close' ? '#8a5a00' : '#993300');
+    return `<tr>
+      <td style="padding:8px;border-bottom:1px solid #eee;">${r.label}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">${goalFmt}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">${actFmt}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;color:${color};font-weight:700;">${toGoal.text}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">${gap.text}</td>
+    </tr>`;
+  }).join('');
+
+  const rankRowsHtml = ranks.map(r => {
+    const bucket = rankLabel(r.rank, total);
+    const bg = ({ 'rank-top':'#d6f6e3','rank-strong':'#dceffd','rank-mid':'#fff3d6','rank-low':'#ffe1d6','rank-bottom':'#ffd6d6' })[bucket.cls] || '#eee';
+    const fg = ({ 'rank-top':'#136c3f','rank-strong':'#134f7d','rank-mid':'#8a5a00','rank-low':'#993300','rank-bottom':'#8a1a1a' })[bucket.cls] || '#333';
+    return `<tr>
       <td style="padding:8px;border-bottom:1px solid #eee;">${r.label}</td>
       <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">${r.you}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;color:#555;">${r.avg}</td>
       <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;color:#555;">${r.top}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;">${r.rank ? '#' + r.rank + ' of ' + total : '—'}</td>
-    </tr>
-  `).join('');
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">${r.pctOfTop != null ? r.pctOfTop.toFixed(0) + '%' : '—'}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;">${r.rank ? '#' + r.rank + ' of ' + total : '—'} <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:${bg};color:${fg};">${bucket.label}</span></td>
+    </tr>`;
+  }).join('');
+
+  // NPS comparison
+  const storeNPS = STATE.storeNPS[short];
+  const npsStats = STATE.storeNPSStats || {};
+  const storeNPSRank = npsStats.rankOf ? npsStats.rankOf(short) : null;
+  const empNps = $('empNPS').value;
+  let empNpsLine = '';
+  if (empNps && npsStats.avg != null) {
+    const empNum = Number(empNps);
+    const empPct = empNum > 1 ? empNum / 100 : empNum;
+    const delta = empPct - npsStats.avg;
+    const sign = delta >= 0 ? '+' : '';
+    const color = delta >= 0 ? '#136c3f' : '#993300';
+    empNpsLine = ` <span style="color:${color};">(${sign}${(delta*100).toFixed(1)} pts vs. company avg)</span>`;
+  }
 
   return `
-  <div style="font-family:Arial,Helvetica,sans-serif; max-width:720px; margin:0 auto; color:#0e2742;">
+  <div style="font-family:Arial,Helvetica,sans-serif; max-width:760px; margin:0 auto; color:#0e2742;">
     <div style="background:#0a2a52; color:#fff; padding:20px 24px; border-radius:10px 10px 0 0; display:flex; justify-content:space-between; align-items:center;">
       <div>
         <div style="color:#f6a01b; font-size:20px; font-weight:bold;">Employee Scorecard</div>
@@ -1067,25 +1270,47 @@ function buildEmailHTML(rep, grade) {
       <p style="margin:0 0 12px;">
         <b>Company Rank:</b> ${rep.rank ? '#' + rep.rank + ' of ' + total : '—'} ${pct ? '(Top ' + (pct*100).toFixed(1) + '%)' : ''}
       </p>
+
+      <h3 style="color:#0a2a52;margin-top:18px;">Goal Tracking (Month-to-Date)</h3>
+      <p style="font-size:12px;color:#486490;margin:4px 0 8px;">Store MTD traffic ${fmtNum((STATE.shoppertrack[short] || {}).mtdTraffic)} · ÷ ${($('numEmployees').value || '?')} reps</p>
+      <table style="width:100%; border-collapse:collapse; font-size:14px;">
+        <thead>
+          <tr style="background:#f1f6fd; text-align:left;">
+            <th style="padding:8px;">Category</th>
+            <th style="padding:8px; text-align:right;">Goal</th>
+            <th style="padding:8px; text-align:right;">Actual</th>
+            <th style="padding:8px; text-align:right;">% to Goal</th>
+            <th style="padding:8px; text-align:right;">Gap</th>
+          </tr>
+        </thead>
+        <tbody>${goalRowsHtml}</tbody>
+      </table>
+
+      <h3 style="color:#0a2a52;margin-top:20px;">National Ranking — How Close to the Top</h3>
       <table style="width:100%; border-collapse:collapse; font-size:14px;">
         <thead>
           <tr style="background:#f1f6fd; text-align:left;">
             <th style="padding:8px;">Category</th>
             <th style="padding:8px; text-align:right;">Your #</th>
-            <th style="padding:8px; text-align:right;">Company Avg</th>
             <th style="padding:8px; text-align:right;">Top Performer</th>
-            <th style="padding:8px;">National Rank</th>
+            <th style="padding:8px; text-align:right;">% of Top</th>
+            <th style="padding:8px;">Your Rank</th>
           </tr>
         </thead>
-        <tbody>${rowsHtml}</tbody>
+        <tbody>${rankRowsHtml}</tbody>
       </table>
 
-      <h3 style="color:#0a2a52;margin-top:20px;">Manual Metrics</h3>
+      <h3 style="color:#0a2a52;margin-top:20px;">NPS</h3>
+      <ul style="padding-left:18px;line-height:1.7;">
+        <li><b>Store NPS:</b> ${storeNPS != null ? fmtPct(storeNPS, 0) : '—'} ${storeNPSRank ? `· ranked #${storeNPSRank} of ${npsStats.total} stores` : ''}</li>
+        <li><b>Company avg store NPS:</b> ${npsStats.avg != null ? fmtPct(npsStats.avg, 1) : '—'}</li>
+        <li><b>Employee personal NPS (entered):</b> ${empNps || '—'}${empNpsLine}</li>
+      </ul>
+
+      <h3 style="color:#0a2a52;">Other manual metrics</h3>
       <ul style="padding-left:18px;line-height:1.6;">
-        <li>NPS: ${$('empNPS').value || '—'}</li>
-        <li>T-Sheets MTD: ${$('empTSheets').value || '—'}</li>
-        <li>Triple Plays: ${$('empTriples').value || '—'}</li>
-        <li>Quad Plays: ${$('empQuads').value || '—'}</li>
+        <li>Triple Plays MTD: ${$('empTriples').value || '—'}</li>
+        <li>Quad Plays MTD: ${$('empQuads').value || '—'}</li>
       </ul>
 
       <h3 style="color:#0a2a52;">Strengths</h3>
@@ -1153,16 +1378,29 @@ async function onSubmit() {
         watches_mtd: rep.watchesMTD,
         accessory_dollars: rep.accessoryDollars,
         accessory_per_box: rep.accessoryPerBox,
-        nps_from_report: rep.nps,
+        store_nps: STATE.storeNPS[stripXfinity(STATE.selectedStore)],
         total_score: rep.totalScore,
       },
+      goals: (STATE.goalsForReport || []).map(g => ({
+        category: g.label,
+        goal: g.goal,
+        actual: g.actual,
+        pct_to_goal: g.goal ? g.actual / g.goal : null,
+      })),
+      store_nps_context: {
+        store_nps: STATE.storeNPS[stripXfinity(STATE.selectedStore)],
+        company_avg_store_nps: STATE.storeNPSStats && STATE.storeNPSStats.avg,
+        store_nps_rank: STATE.storeNPSStats && STATE.storeNPSStats.rankOf
+          ? STATE.storeNPSStats.rankOf(stripXfinity(STATE.selectedStore)) : null,
+        total_stores_ranked: STATE.storeNPSStats && STATE.storeNPSStats.total,
+      },
       manual_inputs: {
-        nps: $('empNPS').value,
+        employee_personal_nps: $('empNPS').value,
         t_sheets_mtd: $('empTSheets').value,
         triple_plays_mtd: $('empTriples').value,
         quad_plays_mtd: $('empQuads').value,
-        watches_tablets_combined_mtd: $('empWatchTab').value,
         daily_shopper_track_avg: $('dailyShopperTrack').value,
+        store_mtd_traffic: (STATE.shoppertrack[stripXfinity(STATE.selectedStore)] || {}).mtdTraffic,
         store_headcount: $('numEmployees').value,
       },
       category_ranks: {
