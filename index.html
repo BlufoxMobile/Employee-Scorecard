@@ -369,31 +369,186 @@
   }
   .opp-block.areas .tag { background: #fff1e8; color: #8a3a0e; }
 
-  /* Yes/No pills used on the scorecard for each Opportunity row */
-  .opp-result-row {
+  /* =================== HERO: Wins / Focus =================== */
+  .hero-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  @media (max-width: 700px) { .hero-row { grid-template-columns: 1fr; } }
+
+  .hero-card {
+    border-radius: 14px;
+    padding: 18px 20px 20px;
+    border: 2px solid;
+    page-break-inside: avoid; break-inside: avoid;
+  }
+  .hero-wins {
+    background: linear-gradient(135deg, #e8f8ee 0%, #d6f6e3 100%);
+    border-color: #21c46c;
+  }
+  .hero-focus {
+    background: linear-gradient(135deg, #fff7eb 0%, #ffeacf 100%);
+    border-color: #f6a01b;
+  }
+  .hero-title {
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin: 0 0 12px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 6px 0;
-    font-size: 13.5px;
-    border-bottom: 1px solid #eaf0fa;
+    gap: 8px;
   }
-  .opp-result-row:last-child { border-bottom: 0; }
-  .opp-result-row .lbl { color: var(--bf-text); flex: 1 1 auto; }
-  .opp-pill {
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 3px 10px;
-    border-radius: 999px;
-    text-transform: uppercase;
-    letter-spacing: .5px;
+  .hero-wins .hero-title { color: #136c3f; }
+  .hero-focus .hero-title { color: #8a5a00; }
+  .hero-title .ico {
+    font-size: 20px;
+    line-height: 1;
+  }
+  .hero-list { display: flex; flex-direction: column; gap: 10px; }
+  .hero-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: rgba(255,255,255,.65);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .hero-item .hi-ico {
+    font-size: 18px;
+    line-height: 1.3;
     flex: 0 0 auto;
   }
-  .opp-pill.yes { background: #d6f6e3; color: #136c3f; }
-  .opp-pill.no  { background: #ffe1d6; color: #993300; }
-  .opp-pill.na  { background: #eef1f6; color: #6b7a90; }
+  .hero-item .hi-body { flex: 1 1 auto; }
+  .hero-item .hi-label {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--bf-text);
+    line-height: 1.2;
+  }
+  .hero-item .hi-detail {
+    font-size: 13px;
+    margin-top: 2px;
+    line-height: 1.3;
+  }
+  .hero-wins .hi-detail { color: #136c3f; }
+  .hero-focus .hi-detail { color: #8a5a00; }
+  .hero-empty {
+    background: rgba(255,255,255,.5);
+    border-radius: 10px;
+    padding: 12px;
+    color: var(--bf-text-soft);
+    font-size: 13px;
+    font-style: italic;
+  }
+
+  /* =================== Goal Progress Cards =================== */
+  .goal-progress-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .goal-progress-row {
+    background: #fafcff;
+    border: 1px solid #e0eaf6;
+    border-radius: 10px;
+    padding: 12px 14px;
+    page-break-inside: avoid; break-inside: avoid;
+  }
+  .gp-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .gp-label {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--bf-text);
+  }
+  .gp-numbers {
+    font-size: 14px;
+    color: var(--bf-text-soft);
+    font-variant-numeric: tabular-nums;
+  }
+  .gp-numbers .actual { font-weight: 800; color: var(--bf-text); font-size: 18px; }
+  .gp-bar-track {
+    height: 12px;
+    background: #eaf0fa;
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+    margin: 6px 0 8px;
+  }
+  .gp-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width .3s ease;
+  }
+  .gp-bar-fill.hit  { background: linear-gradient(90deg, #21c46c, #5dd58c); }
+  .gp-bar-fill.close{ background: linear-gradient(90deg, #f6a01b, #ffc04f); }
+  .gp-bar-fill.miss { background: linear-gradient(90deg, #e23b3b, #ff7361); }
+  .gp-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    gap: 10px;
+  }
+  .gp-status .pct {
+    font-weight: 800;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+  .gp-status .pct.hit  { color: #136c3f; }
+  .gp-status .pct.close{ color: #8a5a00; }
+  .gp-status .pct.miss { color: #993300; }
+  .gp-status .msg { color: var(--bf-text-soft); text-align: right; }
+  .gp-status .msg.win { color: #136c3f; font-weight: 600; }
+  .gp-status .msg.gap { color: #993300; font-weight: 600; }
+
+  /* =================== Visual Yes/No checklist =================== */
+  .checklist {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .checklist-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid #eaf0fa;
+    background: #fff;
+  }
+  .checklist-item.yes { background: #f1fbf5; border-color: #c1eed3; }
+  .checklist-item.no  { background: #fff3ed; border-color: #ffd2bd; }
+  .checklist-icon {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    font-weight: 700;
+    font-size: 15px;
+    color: #fff;
+  }
+  .checklist-icon.yes { background: #21c46c; }
+  .checklist-icon.no  { background: #e23b3b; }
+  .checklist-icon.na  { background: #c8d3e2; color: #fff; }
+  .checklist-text {
+    flex: 1 1 auto;
+    font-size: 13.5px;
+    color: var(--bf-text);
+  }
+  .checklist-item.yes .checklist-text { color: #0e2742; font-weight: 500; }
+  .checklist-item.no  .checklist-text { color: #6e1f00; font-weight: 500; }
 
   .sc-footer {
     padding: 18px 28px;
@@ -578,6 +733,19 @@
     </div>
 
     <div class="sc-body">
+
+      <!-- HERO: blatantly obvious wins + focus areas -->
+      <div class="hero-row" id="scHero">
+        <div class="hero-card hero-wins">
+          <h3 class="hero-title"><span class="ico">🏆</span> What You Crushed</h3>
+          <div class="hero-list" id="scWinsList"></div>
+        </div>
+        <div class="hero-card hero-focus">
+          <h3 class="hero-title"><span class="ico">🎯</span> Where to Focus Next</h3>
+          <div class="hero-list" id="scFocusList"></div>
+        </div>
+      </div>
+
       <div class="sc-row">
         <div class="sc-card">
           <h3>Employee</h3>
@@ -598,19 +766,8 @@
       </div>
 
       <div class="sc-card">
-        <h3>Goal Tracking (Month-to-Date)</h3>
-        <table class="metric-table">
-          <thead>
-            <tr>
-              <th>Category</th>
-              <th class="num">Your Goal</th>
-              <th class="num">Your Actual</th>
-              <th class="num">% to Goal</th>
-              <th class="num">Gap</th>
-            </tr>
-          </thead>
-          <tbody id="scGoalRows"></tbody>
-        </table>
+        <h3>Monthly Goals</h3>
+        <div class="goal-progress-list" id="scGoalProgressList"></div>
       </div>
 
       <div class="sc-card">
@@ -678,7 +835,7 @@
         </div>
         <div class="sc-card">
           <h3>Employee Opportunities</h3>
-          <div id="scOpportunities"></div>
+          <div class="checklist" id="scOpportunities"></div>
         </div>
       </div>
 
@@ -1136,10 +1293,17 @@ function onEmployeeChange() {
     $('empNPS').value = rep.nps; // pre-fill, manager can override
   }
 
-  // Auto-fill employee email guess (firstname.lastname). Manager can edit.
-  // The visible field strips the suffix; the suffix is shown as a chip.
+  // Auto-fill employee email guess: most Blufox addresses are first initial +
+  // last name (e.g., Nancy Trombley → ntrombley). Manager edits if wrong.
   if (!$('empEmail').value) {
-    $('empEmail').value = (rep.name || '').toLowerCase().replace(/\s+/g, '.');
+    const parts = (rep.name || '').trim().split(/\s+/);
+    if (parts.length >= 2) {
+      const first = parts[0];
+      const last  = parts.slice(1).join('');   // glue Mc Donald, Van Dyke, etc.
+      $('empEmail').value = (first.charAt(0) + last).toLowerCase();
+    } else if (parts.length === 1) {
+      $('empEmail').value = parts[0].toLowerCase();
+    }
   }
 
   // Company rank + auto-letter grade
@@ -1262,22 +1426,44 @@ function onGenerate() {
   ];
   STATE.goalsForReport = goalRows;
 
-  const goalTbody = $('scGoalRows');
-  goalTbody.innerHTML = '';
+  // Render Goal Tracking as vertical progress-bar cards
+  const goalHost = $('scGoalProgressList');
+  goalHost.innerHTML = '';
   goalRows.forEach(r => {
     const goalFmt = r.fmt === 'money' ? fmtMoney(r.goal) : fmtNum(r.goal, 0);
     const actFmt  = r.fmt === 'money' ? fmtMoney(r.actual) : fmtNum(r.actual, 0);
-    const toGoal = fmtToGoal(r.actual, r.goal);
-    const gap = fmtGap(r.actual, r.goal, r.fmt === 'money');
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${r.label}</td>
-      <td class="num">${goalFmt}</td>
-      <td class="num">${actFmt}</td>
-      <td class="num ${toGoal.cls}">${toGoal.text}</td>
-      <td class="num ${gap.cls}">${gap.text}</td>
+    const pct = r.goal ? Math.min(1.5, r.actual / r.goal) : 0; // cap bar at 150%
+    const pctRaw = r.goal ? (r.actual / r.goal) : 0;
+    const cls = pctRaw >= 1 ? 'hit' : (pctRaw >= 0.75 ? 'close' : 'miss');
+    const fillWidth = Math.min(100, pct * 100 / 1.0); // bar visualizes 0–100%; overflow shown via "hit"
+    const gap = r.goal - r.actual;
+    let msg, msgCls;
+    if (pctRaw >= 1) {
+      const over = r.actual - r.goal;
+      msg = r.fmt === 'money'
+        ? `${fmtMoney(over)} over goal!`
+        : `${fmtNum(Math.round(over))} over goal!`;
+      msgCls = 'win';
+    } else {
+      msg = r.fmt === 'money'
+        ? `${fmtMoney(gap)} short of goal`
+        : `${fmtNum(Math.ceil(gap))} more to hit goal`;
+      msgCls = 'gap';
+    }
+    const node = document.createElement('div');
+    node.className = 'goal-progress-row';
+    node.innerHTML = `
+      <div class="gp-head">
+        <div class="gp-label">${r.label}</div>
+        <div class="gp-numbers"><span class="actual">${actFmt}</span> <span style="opacity:.7">/ ${goalFmt}</span></div>
+      </div>
+      <div class="gp-bar-track"><div class="gp-bar-fill ${cls}" style="width:${fillWidth.toFixed(1)}%"></div></div>
+      <div class="gp-status">
+        <span class="pct ${cls}">${(pctRaw * 100).toFixed(0)}%${pctRaw >= 1 ? ' ✓' : ''}</span>
+        <span class="msg ${msgCls}">${msg}</span>
+      </div>
     `;
-    goalTbody.appendChild(tr);
+    goalHost.appendChild(node);
   });
 
   // ---------- National Ranking table ----------
@@ -1363,15 +1549,21 @@ function onGenerate() {
   $('scQPPct').textContent          = qpPct.toFixed(1) + '%';
   $('scTSheetsNeeded').textContent  = fmtNum(actions.tsheetsNeeded);
 
-  // ---------- Employee Opportunities (Yes/No) ----------
+  // ---------- Employee Opportunities (visual checklist) ----------
   const opps = readOpportunities();
   const oppHost = $('scOpportunities');
   oppHost.innerHTML = OPPORTUNITIES.map(o => {
     const v = opps[o.id];
-    const pillCls = v === 'yes' ? 'yes' : (v === 'no' ? 'no' : 'na');
-    const pillText = v === 'yes' ? 'Yes' : (v === 'no' ? 'No' : '—');
-    return `<div class="opp-result-row"><span class="lbl">${o.label}</span><span class="opp-pill ${pillCls}">${pillText}</span></div>`;
+    const cls = v === 'yes' ? 'yes' : (v === 'no' ? 'no' : 'na');
+    const icon = v === 'yes' ? '✓' : (v === 'no' ? '✗' : '—');
+    return `<div class="checklist-item ${cls}">
+      <span class="checklist-icon ${cls}">${icon}</span>
+      <span class="checklist-text">${o.label}</span>
+    </div>`;
   }).join('');
+
+  // ---------- Hero: Wins + Focus ----------
+  renderHero(rep, goalRows, rankRows, opps);
 
   // Coaching
   const strengthsTags = $('scStrengthsTags');
@@ -1409,6 +1601,82 @@ function onGenerate() {
   $('btnPrint').disabled = false;
   $('btnSubmit').disabled = false;
   $('scorecard').scrollIntoView({ behavior: 'smooth' });
+}
+
+// === HERO: compute the punchy "What You Crushed" / "Where to Focus" lists ===
+// The point is to make wins and opportunities BLATANTLY obvious at a glance —
+// not buried in tables. We pull the strongest signals from the goal table,
+// the national rank, and the Yes/No opportunities, then narrate them in one
+// short line each.
+function computeHero(rep, goalRows, rankRows, opps) {
+  const wins = [];
+  const focus = [];
+
+  // --- Goal achievements (wins) and shortfalls (focus) ---
+  goalRows.forEach(r => {
+    if (!r.goal) return;
+    const pct = r.actual / r.goal;
+    if (pct >= 1) {
+      const over = r.actual - r.goal;
+      const detail = r.fmt === 'money'
+        ? `${(pct * 100).toFixed(0)}% to goal · ${fmtMoney(over)} over`
+        : `${(pct * 100).toFixed(0)}% to goal · +${fmtNum(Math.round(over))} over`;
+      wins.push({ label: r.label, detail, weight: pct });
+    } else {
+      const gap = r.goal - r.actual;
+      const detail = r.fmt === 'money'
+        ? `${fmtMoney(gap)} short of goal`
+        : `${fmtNum(Math.ceil(gap))} more to hit goal`;
+      focus.push({ label: r.label, detail, weight: 1 - pct });
+    }
+  });
+
+  // --- National-ranking signals ---
+  rankRows.forEach(r => {
+    if (r.repRank && r.repTotal) {
+      const pos = r.repRank / r.repTotal;
+      if (pos <= 0.10) wins.push({ label: r.label,  detail: `Top Performer nationally · #${r.repRank} of ${r.repTotal}`, weight: 2 });
+      else if (pos <= 0.25) wins.push({ label: r.label, detail: `Strong nationally · #${r.repRank} of ${r.repTotal}`, weight: 1.5 });
+      else if (pos > 0.75)  focus.push({ label: r.label, detail: `National rank #${r.repRank} of ${r.repTotal} — room to climb`, weight: 2 });
+    }
+  });
+
+  // --- Yes/No opportunities → "No" answers become focus items ---
+  OPPORTUNITIES.forEach(o => {
+    if (opps[o.id] === 'no') {
+      focus.push({ label: o.label, detail: 'Reviewed today — needs work', weight: 1.1, isOpp: true });
+    }
+  });
+
+  wins.sort((a, b) => b.weight - a.weight);
+  focus.sort((a, b) => b.weight - a.weight);
+
+  return { wins: wins.slice(0, 3), focus: focus.slice(0, 3) };
+}
+
+function renderHero(rep, goalRows, rankRows, opps) {
+  const hero = computeHero(rep, goalRows, rankRows, opps);
+  const winsHost = $('scWinsList');
+  const focusHost = $('scFocusList');
+  winsHost.innerHTML = hero.wins.length
+    ? hero.wins.map(w => `<div class="hero-item">
+        <span class="hi-ico">✅</span>
+        <span class="hi-body">
+          <div class="hi-label">${w.label}</div>
+          <div class="hi-detail">${w.detail}</div>
+        </span>
+      </div>`).join('')
+    : `<div class="hero-empty">Plenty of runway this month — let's find one to lock in.</div>`;
+  focusHost.innerHTML = hero.focus.length
+    ? hero.focus.map(f => `<div class="hero-item">
+        <span class="hi-ico">🎯</span>
+        <span class="hi-body">
+          <div class="hi-label">${f.label}</div>
+          <div class="hi-detail">${f.detail}</div>
+        </span>
+      </div>`).join('')
+    : `<div class="hero-empty">Crushed every goal this month. Now go raise the bar.</div>`;
+  return hero;
 }
 
 // National ranking rows — both rep and store ranks shown side by side, both
@@ -1520,21 +1788,94 @@ function buildEmailHTML(rep, grade) {
   const gradeBg = ({A:'#21c46c',B:'#66d36a',C:'#f6a01b',D:'#ff7a45',F:'#e23b3b'})[grade] || '#f6a01b';
   const gradeFg = ({A:'#fff', B:'#1a1a1a', C:'#1a1a1a', D:'#fff', F:'#fff'})[grade] || '#1a1a1a';
 
-  // === Goal table ===
+  // === Hero (Wins + Focus) ===
+  // We rebuild the same data here that the on-screen renderHero() uses so the
+  // email mirrors what the rep saw. Read the current rankRows from STATE
+  // (they were stashed by onGenerate before this runs).
+  const opps = readOpportunities();
+  const heroData = computeHero(rep, goals, ranks, opps);
+  const heroItem = (icon, label, detail, color) => `
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:rgba(255,255,255,.7);border-radius:10px;margin-bottom:8px;">
+      <tr>
+        <td valign="top" width="28" style="padding:10px 0 10px 12px;font-size:18px;line-height:1;">${icon}</td>
+        <td valign="top" style="padding:10px 12px 10px 8px;">
+          <div style="font-size:14px;font-weight:700;color:#0e2742;line-height:1.2;">${esc(label)}</div>
+          <div style="font-size:13px;color:${color};margin-top:2px;line-height:1.3;">${esc(detail)}</div>
+        </td>
+      </tr>
+    </table>`;
+  const winsItems = heroData.wins.length
+    ? heroData.wins.map(w => heroItem('✅', w.label, w.detail, '#136c3f')).join('')
+    : `<div style="background:rgba(255,255,255,.5);border-radius:10px;padding:12px;color:#486490;font-size:13px;font-style:italic;">Plenty of runway this month — let's find one to lock in.</div>`;
+  const focusItems = heroData.focus.length
+    ? heroData.focus.map(f => heroItem('🎯', f.label, f.detail, '#8a5a00')).join('')
+    : `<div style="background:rgba(255,255,255,.5);border-radius:10px;padding:12px;color:#486490;font-size:13px;font-style:italic;">Crushed every goal this month. Now go raise the bar.</div>`;
+
+  const heroHtml = `
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin-bottom:18px;">
+      <tr>
+        <td valign="top" style="width:50%;padding-right:8px;">
+          <div style="background:linear-gradient(135deg,#e8f8ee 0%,#d6f6e3 100%);border:2px solid #21c46c;border-radius:14px;padding:16px 18px;">
+            <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:#136c3f;margin-bottom:10px;">🏆 What You Crushed</div>
+            ${winsItems}
+          </div>
+        </td>
+        <td valign="top" style="width:50%;padding-left:8px;">
+          <div style="background:linear-gradient(135deg,#fff7eb 0%,#ffeacf 100%);border:2px solid #f6a01b;border-radius:14px;padding:16px 18px;">
+            <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:#8a5a00;margin-bottom:10px;">🎯 Where to Focus Next</div>
+            ${focusItems}
+          </div>
+        </td>
+      </tr>
+    </table>`;
+
+  // === Goal Progress (replaces old table) ===
+  // Each metric is a row with goal/actual numbers, a colored bar, and a
+  // status line. Bars are rendered as a 2-cell table since email clients
+  // don't reliably support the gradients/rounded corners on a single div.
   const goalRowsHtml = goals.map(r => {
     const goalFmt = r.fmt === 'money' ? fmtMoney(r.goal) : fmtNum(r.goal, 0);
     const actFmt  = r.fmt === 'money' ? fmtMoney(r.actual) : fmtNum(r.actual, 0);
-    const toGoal  = fmtToGoal(r.actual, r.goal);
-    const gap     = fmtGap(r.actual, r.goal, r.fmt === 'money');
-    const color   = toGoal.cls === 'goal-hit' ? '#136c3f' : (toGoal.cls === 'goal-close' ? '#8a5a00' : '#993300');
-    const gapColor = gap.cls === 'gap-pos' ? '#136c3f' : '#993300';
-    return `<tr>
-      <td style="padding:9px 10px;border-bottom:1px solid #eaf0fa;">${esc(r.label)}</td>
-      <td style="padding:9px 10px;border-bottom:1px solid #eaf0fa;text-align:center;">${goalFmt}</td>
-      <td style="padding:9px 10px;border-bottom:1px solid #eaf0fa;text-align:center;">${actFmt}</td>
-      <td style="padding:9px 10px;border-bottom:1px solid #eaf0fa;text-align:center;color:${color};font-weight:700;">${toGoal.text}</td>
-      <td style="padding:9px 10px;border-bottom:1px solid #eaf0fa;text-align:center;color:${gapColor};">${gap.text}</td>
-    </tr>`;
+    const pctRaw  = r.goal ? r.actual / r.goal : 0;
+    const cls     = pctRaw >= 1 ? 'hit' : (pctRaw >= 0.75 ? 'close' : 'miss');
+    const fillW   = Math.min(100, pctRaw * 100);
+    const barColor = cls === 'hit' ? '#21c46c' : (cls === 'close' ? '#f6a01b' : '#e23b3b');
+    const pctColor = cls === 'hit' ? '#136c3f' : (cls === 'close' ? '#8a5a00' : '#993300');
+    let msg;
+    if (pctRaw >= 1) {
+      const over = r.actual - r.goal;
+      msg = r.fmt === 'money' ? `${fmtMoney(over)} over goal!` : `${fmtNum(Math.round(over))} over goal!`;
+    } else {
+      const gap = r.goal - r.actual;
+      msg = r.fmt === 'money' ? `${fmtMoney(gap)} short of goal` : `${fmtNum(Math.ceil(gap))} more to hit goal`;
+    }
+    return `
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fafcff;border:1px solid #e0eaf6;border-radius:10px;margin-bottom:10px;">
+        <tr><td style="padding:12px 14px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+            <tr>
+              <td style="font-weight:700;font-size:14px;color:#0e2742;">${esc(r.label)}</td>
+              <td style="text-align:right;font-size:14px;color:#486490;font-variant-numeric:tabular-nums;">
+                <span style="font-weight:800;color:#0e2742;font-size:18px;">${actFmt}</span>
+                <span style="opacity:.7;"> / ${goalFmt}</span>
+              </td>
+            </tr>
+          </table>
+          <!-- progress bar (two-cell table) -->
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:8px 0;height:12px;background:#eaf0fa;border-radius:999px;">
+            <tr>
+              <td width="${fillW.toFixed(1)}%" style="background:${barColor};height:12px;border-radius:999px;line-height:0;font-size:0;">&nbsp;</td>
+              <td width="${(100 - fillW).toFixed(1)}%" style="line-height:0;font-size:0;">&nbsp;</td>
+            </tr>
+          </table>
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+            <tr>
+              <td style="font-weight:800;font-size:15px;color:${pctColor};font-variant-numeric:tabular-nums;">${(pctRaw * 100).toFixed(0)}%${pctRaw >= 1 ? ' ✓' : ''}</td>
+              <td style="text-align:right;font-size:13px;font-weight:600;color:${pctColor};">${esc(msg)}</td>
+            </tr>
+          </table>
+        </td></tr>
+      </table>`;
   }).join('');
 
   // === National ranking table ===
@@ -1646,20 +1987,28 @@ function buildEmailHTML(rep, grade) {
       kv('T-Sheets Needed',       fmtNum(a.tsheetsNeeded ?? 0))
     }</table>` + cardClose;
 
-  // Employee Opportunities
-  const opps = readOpportunities();
-  const oppPill = (v) => {
-    if (v === 'yes') return '<span style="display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#d6f6e3;color:#136c3f;text-transform:uppercase;letter-spacing:.5px;">Yes</span>';
-    if (v === 'no')  return '<span style="display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#ffe1d6;color:#993300;text-transform:uppercase;letter-spacing:.5px;">No</span>';
-    return '<span style="display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#eef1f6;color:#6b7a90;">—</span>';
+  // Employee Opportunities — visual checklist (green ✓ / red ✗ chips)
+  const oppLineRow = (o) => {
+    const v = opps[o.id];
+    const ok = v === 'yes';
+    const no = v === 'no';
+    const bg     = ok ? '#f1fbf5' : (no ? '#fff3ed' : '#ffffff');
+    const border = ok ? '#c1eed3' : (no ? '#ffd2bd' : '#eaf0fa');
+    const iconBg = ok ? '#21c46c' : (no ? '#e23b3b' : '#c8d3e2');
+    const icon   = ok ? '✓' : (no ? '✗' : '—');
+    return `<tr><td style="padding-bottom:6px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${bg};border:1px solid ${border};border-radius:8px;">
+        <tr>
+          <td width="34" style="padding:8px 0 8px 10px;">
+            <div style="width:24px;height:24px;border-radius:50%;background:${iconBg};color:#fff;font-weight:700;text-align:center;line-height:24px;font-size:14px;">${icon}</div>
+          </td>
+          <td style="padding:8px 12px 8px 8px;font-size:13.5px;color:#0e2742;">${esc(o.label)}</td>
+        </tr>
+      </table>
+    </td></tr>`;
   };
   const oppCard = cardOpen('Employee Opportunities') +
-    `<table style="width:100%;border-collapse:collapse;">${
-      OPPORTUNITIES.map(o => `<tr>
-        <td style="padding:5px 0;font-size:13px;color:#0e2742;">${esc(o.label)}</td>
-        <td style="padding:5px 0;text-align:right;">${oppPill(opps[o.id])}</td>
-      </tr>`).join('')
-    }</table>` + cardClose;
+    `<table style="width:100%;border-collapse:collapse;">${OPPORTUNITIES.map(oppLineRow).join('')}</table>` + cardClose;
 
   // Two-column table helper (renders side-by-side on desktop, stacks gracefully)
   const twoCol = (left, right) => `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;margin-bottom:0;">
@@ -1693,21 +2042,12 @@ function buildEmailHTML(rep, grade) {
 
     <!-- Body -->
     <div style="padding:24px 28px;">
+
+      ${heroHtml}
+
       ${twoCol(empCard, rankCard)}
 
-      ${cardOpen('Goal Tracking (Month-to-Date)') +
-        `<table style="width:100%;border-collapse:collapse;font-size:14px;">
-          <thead>
-            <tr style="background:#f1f6fd;">
-              <th style="padding:9px 10px;text-align:left;color:#486490;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.6px;">Category</th>
-              <th style="padding:9px 10px;text-align:center;color:#486490;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.6px;">Your Goal</th>
-              <th style="padding:9px 10px;text-align:center;color:#486490;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.6px;">Your Actual</th>
-              <th style="padding:9px 10px;text-align:center;color:#486490;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.6px;">% to Goal</th>
-              <th style="padding:9px 10px;text-align:center;color:#486490;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.6px;">Gap</th>
-            </tr>
-          </thead>
-          <tbody>${goalRowsHtml}</tbody>
-        </table>` + cardClose}
+      ${cardOpen('Monthly Goals') + `<div>${goalRowsHtml}</div>` + cardClose}
 
       ${cardOpen('National Ranking — How Close to #1') +
         `<table style="width:100%;border-collapse:collapse;font-size:14px;">
@@ -1756,16 +2096,21 @@ async function onSubmit() {
 
   const btn = $('btnSubmit');
   btn.disabled = true; btn.textContent = '⏳ Sending…';
-  setStatus($('submitStatus'), 'Generating PDF and submitting to Zapier…', '');
+  setStatus($('submitStatus'), 'Generating PDF and sending the scorecard…', '');
 
   try {
     const { blob, filename } = await makePDF();
     const grade = STATE.gradeForReport || $('overallGrade').value || 'C';
     const total = STATE.reps.length;
     // Manager-typed (or auto-filled) employee email, normalized to @blufoxmobile.com.
-    // Falls back to the name-based guess if the field is empty.
+    // Falls back to first-initial-last-name guess if the field is empty.
+    const guessLocal = (() => {
+      const parts = (rep.name || '').trim().split(/\s+/);
+      if (parts.length >= 2) return (parts[0].charAt(0) + parts.slice(1).join('')).toLowerCase();
+      return (parts[0] || '').toLowerCase();
+    })();
     const empEmail = normalizeEmpEmail($('empEmail').value)
-                  || ((rep.name || '').toLowerCase().replace(/\s+/g, '.') + '@blufoxmobile.com');
+                  || (guessLocal ? guessLocal + '@blufoxmobile.com' : '');
 
     const payload = {
       // Routing — manager identity comes from the store directory (store manager for this store)
@@ -1866,10 +2211,10 @@ async function onSubmit() {
       method: 'POST',
       body: fd,    // browser sets Content-Type: multipart/form-data; boundary=...
     });
-    if (!resp.ok) throw new Error('Zapier returned HTTP ' + resp.status);
+    if (!resp.ok) throw new Error('Submit failed with HTTP ' + resp.status);
 
     setStatus($('submitStatus'),
-      '✓ Scorecard submitted. Zapier will email the employee, store manager, and DM with the PDF attached.',
+      '✓ Scorecard submitted. The employee, store manager, and DM will receive the scorecard by email.',
       'success'
     );
   } catch (e) {
