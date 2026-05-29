@@ -369,6 +369,45 @@
   }
   .opp-block.areas .tag { background: #fff1e8; color: #8a3a0e; }
 
+  /* =================== Paycheck banner =================== */
+  .wage-banner {
+    background: linear-gradient(135deg, #fff4d2 0%, #ffe9a8 50%, #ffd870 100%);
+    border: 2px solid #d4a017;
+    border-radius: 14px;
+    padding: 18px 22px;
+    text-align: center;
+    margin-bottom: 18px;
+    box-shadow: 0 4px 14px rgba(212, 160, 23, .25);
+    page-break-inside: avoid; break-inside: avoid;
+  }
+  .wage-banner-label {
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1.3px;
+    color: #5f4408;
+  }
+  .wage-banner-amount {
+    font-size: 38px;
+    font-weight: 900;
+    color: #5f4408;
+    line-height: 1.1;
+    margin: 6px 0 4px;
+    letter-spacing: -.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .wage-banner-unit {
+    font-size: 18px;
+    font-weight: 600;
+    opacity: .75;
+    letter-spacing: 0;
+  }
+  .wage-banner-foot {
+    font-size: 12px;
+    color: #8a6816;
+    font-style: italic;
+  }
+
   /* =================== HERO: Wins / Focus =================== */
   .hero-row {
     display: grid;
@@ -734,6 +773,13 @@
 
     <div class="sc-body">
 
+      <!-- PAYCHECK BANNER: estimated blended wage, prominently displayed -->
+      <div class="wage-banner" id="scWageBanner" style="display:none;">
+        <div class="wage-banner-label">💰 Estimated Blended Wage</div>
+        <div class="wage-banner-amount"><span id="scWageAmount">—</span><span class="wage-banner-unit"> / hour</span></div>
+        <div class="wage-banner-foot">Based on your year-to-date performance · estimate only</div>
+      </div>
+
       <!-- HERO: blatantly obvious wins + focus areas -->
       <div class="hero-row" id="scHero">
         <div class="hero-card hero-wins">
@@ -1054,6 +1100,7 @@ function parseSalesReport(buf) {
   const cNewRGU = pick('New RGU');
   const cTotalScore = pick('Total Score');
   const cMPMix  = pick('Mobile Plus Mix (%) 5 Pts', 'Mobile Plus Mix (%)'); // actual Mobile Plus mix %
+  const cBlendedWage = pick('Blended Wage ESTIMATE ONLY', 'Blended Wage');  // hourly estimate
   const cGPRank   = pick('GP Rank');
   const cMobRank  = pick('Mobile Prod Rank');
   const cAccRank  = pick('Accessory Rank');
@@ -1088,6 +1135,7 @@ function parseSalesReport(buf) {
       newRGU: row[cNewRGU] ?? 0,
       totalScore: row[cTotalScore] ?? null,
       mpMix: row[cMPMix] ?? null,
+      blendedWage: row[cBlendedWage] ?? null,
       // Raw ranks from sales report. Convention: HIGHER number = BETTER (Rayan
       // Abidali has GP Rank 1101 with the highest GP). Display flips this.
       gpRank: row[cGPRank] ?? null,
@@ -1404,6 +1452,14 @@ function onGenerate() {
   $('scHire').textContent = fmtHire(rep.hireDate);
   $('scHours').textContent = rep.hours != null ? Number(rep.hours).toFixed(1) : '—';
   const short = stripXfinity(store);
+
+  // Estimated blended wage banner — show only if the sales report has it
+  if (rep.blendedWage != null && !isNaN(rep.blendedWage)) {
+    $('scWageAmount').textContent = '$' + Number(rep.blendedWage).toFixed(2);
+    $('scWageBanner').style.display = '';
+  } else {
+    $('scWageBanner').style.display = 'none';
+  }
 
   // Company Ranking card
   const total = STATE.reps.length;
@@ -2076,6 +2132,18 @@ function buildEmailHTML(rep, grade) {
     <!-- Body -->
     <div class="inner-pad" style="padding:24px 28px;">
 
+      ${(rep.blendedWage != null && !isNaN(rep.blendedWage)) ? `
+      <!-- Estimated blended wage banner -->
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin-bottom:18px;">
+        <tr>
+          <td style="background:#fff4d2;background-image:linear-gradient(135deg,#fff4d2 0%,#ffe9a8 50%,#ffd870 100%);border:2px solid #d4a017;border-radius:14px;padding:18px 22px;text-align:center;">
+            <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1.3px;color:#5f4408;">💰 Estimated Blended Wage</div>
+            <div style="font-size:36px;font-weight:900;color:#5f4408;line-height:1.1;margin:6px 0 4px;font-variant-numeric:tabular-nums;">$${Number(rep.blendedWage).toFixed(2)}<span style="font-size:18px;font-weight:600;opacity:.75;"> / hour</span></div>
+            <div style="font-size:12px;color:#8a6816;font-style:italic;">Based on your year-to-date performance · estimate only</div>
+          </td>
+        </tr>
+      </table>` : ''}
+
       ${heroHtml}
 
       ${twoCol(empCard, rankCard)}
@@ -2181,6 +2249,7 @@ async function onSubmit() {
         accessory_per_box: rep.accessoryPerBox,
         store_nps: STATE.storeNPS[stripXfinity(STATE.selectedStore)],
         total_score: rep.totalScore,
+        blended_wage_estimate: rep.blendedWage,
       },
       goals: (STATE.goalsForReport || []).map(g => ({
         category: g.label,
