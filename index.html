@@ -335,16 +335,19 @@
   .rank-num { font-weight: 600; margin-bottom: 4px; line-height: 1.2; }
   .rank-pill {
     display: inline-block;
-    padding: 2px 9px;
+    padding: 3px 10px;
     border-radius: 999px;
     font-size: 12px;
     font-weight: 700;
+    letter-spacing: .3px;
   }
-  .rank-top { background: #d6f6e3; color: #136c3f; }
-  .rank-strong { background: #dceffd; color: #134f7d; }
-  .rank-mid { background: #fff3d6; color: #8a5a00; }
-  .rank-low { background: #ffe1d6; color: #993300; }
-  .rank-bottom { background: #ffd6d6; color: #8a1a1a; }
+  /* 5-band percentile colors. Top 20% green → bottom 20% red. */
+  .pct-green       { background: #1ec773; color: #fff; }
+  .pct-yellow      { background: #f4c542; color: #4a3500; }
+  .pct-orange      { background: #ff8a00; color: #fff; }
+  .pct-red-orange  { background: #ff5a3c; color: #fff; }
+  .pct-red         { background: #d92727; color: #fff; }
+  .pct-na          { background: #eef1f6; color: #6b7a90; }
 
   /* Goal achievement coloring */
   .goal-hit    { color: #136c3f; font-weight: 700; }     /* ≥ 100% */
@@ -369,43 +372,68 @@
   }
   .opp-block.areas .tag { background: #fff1e8; color: #8a3a0e; }
 
-  /* =================== Paycheck banner =================== */
-  .wage-banner {
-    background: linear-gradient(135deg, #fff4d2 0%, #ffe9a8 50%, #ffd870 100%);
-    border: 2px solid #d4a017;
+  /* =================== Headline banner: Rank | Wage =================== */
+  .headline-banner {
+    display: flex;
+    align-items: stretch;
+    background: linear-gradient(135deg, #0a2a52 0%, #143b6d 55%, #1e4d8f 100%);
+    border: 2px solid #f6a01b;
     border-radius: 14px;
     padding: 18px 22px;
-    text-align: center;
     margin-bottom: 18px;
-    box-shadow: 0 4px 14px rgba(212, 160, 23, .25);
+    box-shadow: 0 6px 22px rgba(10, 42, 82, .35);
+    color: #fff;
     page-break-inside: avoid; break-inside: avoid;
   }
-  .wage-banner-label {
-    font-size: 13px;
+  .hl-cell { flex: 1 1 50%; text-align: center; padding: 4px 10px; min-width: 0; }
+  .hl-divider {
+    width: 1px;
+    background: rgba(255,255,255,.18);
+    margin: 0 8px;
+    flex: 0 0 auto;
+  }
+  .hl-label {
+    font-size: 12px;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 1.3px;
-    color: #5f4408;
+    color: #f6a01b;
+    margin-bottom: 8px;
   }
-  .wage-banner-amount {
-    font-size: 38px;
+  .hl-rank-big {
+    font-size: 30px;
     font-weight: 900;
-    color: #5f4408;
+    color: #fff;
     line-height: 1.1;
-    margin: 6px 0 4px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.3px;
+  }
+  .hl-rank-pct { margin-top: 8px; }
+  .hl-rank-pct .rank-pill { font-size: 13px; padding: 4px 14px; }
+  .hl-wage-big {
+    font-size: 36px;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1.1;
+    margin: 0 0 4px;
     letter-spacing: -.5px;
     font-variant-numeric: tabular-nums;
   }
-  .wage-banner-unit {
+  .hl-unit {
     font-size: 18px;
     font-weight: 600;
-    opacity: .75;
+    opacity: .8;
     letter-spacing: 0;
   }
-  .wage-banner-foot {
+  .hl-foot {
     font-size: 12px;
-    color: #8a6816;
+    color: rgba(255,255,255,.75);
     font-style: italic;
+    margin-top: 4px;
+  }
+  @media (max-width: 640px) {
+    .headline-banner { flex-direction: column; }
+    .hl-divider { width: auto; height: 1px; margin: 12px 0; }
   }
 
   /* =================== HERO: Wins / Focus =================== */
@@ -773,11 +801,19 @@
 
     <div class="sc-body">
 
-      <!-- PAYCHECK BANNER: estimated blended wage, prominently displayed -->
-      <div class="wage-banner" id="scWageBanner" style="display:none;">
-        <div class="wage-banner-label">💰 Estimated Blended Wage</div>
-        <div class="wage-banner-amount"><span id="scWageAmount">—</span><span class="wage-banner-unit"> / hour</span></div>
-        <div class="wage-banner-foot">Based on your year-to-date performance · estimate only</div>
+      <!-- HEADLINE BANNER: national rank (LEFT) + estimated blended wage (RIGHT) -->
+      <div class="headline-banner" id="scWageBanner" style="display:none;">
+        <div class="hl-cell hl-rank">
+          <div class="hl-label">🏅 National Rank</div>
+          <div class="hl-rank-big" id="scBannerRank">—</div>
+          <div class="hl-rank-pct"><span class="rank-pill" id="scBannerPctPill">—</span></div>
+        </div>
+        <div class="hl-divider"></div>
+        <div class="hl-cell hl-wage">
+          <div class="hl-label">💰 Estimated Blended Wage</div>
+          <div class="hl-wage-big"><span id="scWageAmount">—</span><span class="hl-unit"> / hour</span></div>
+          <div class="hl-foot" id="scWageFoot">estimate only</div>
+        </div>
       </div>
 
       <!-- HERO: blatantly obvious wins + focus areas -->
@@ -916,6 +952,8 @@
 const CONFIG = {
   STORE_DIRECTORY_URL: 'https://raw.githubusercontent.com/BlufoxMobile/Daily-Sales-Report/main/data/store-directory.json',
   SALES_REPORT_URL:    'https://raw.githubusercontent.com/BlufoxMobile/Daily-Sales-Report/main/data/Sales%20Report.xlsx',
+  // GitHub commits API → "when was the sales report last uploaded?"
+  SALES_REPORT_COMMITS_URL: 'https://api.github.com/repos/BlufoxMobile/Daily-Sales-Report/commits?path=data/Sales%20Report.xlsx&per_page=1',
   SHOPPERTRACK_URL:    'https://raw.githubusercontent.com/BlufoxMobile/Daily-Sales-Report/main/data/shoppertrack.xlsx',
   // Zapier catch-hook the user provided
   ZAPIER_WEBHOOK_URL:  'https://hooks.zapier.com/hooks/catch/20441079/4b3u8xy/',
@@ -925,6 +963,7 @@ const CONFIG = {
 
 const STATE = {
   directory: null,    // store-directory.json
+  salesReportDate: null,  // Date of the last Sales Report.xlsx commit
   reps: [],           // array of rep objects (parsed)
   shoppertrack: {},   // { 'Bourbonnais': { mtdAvgTraffic: 98.1, mtdTraffic: 2650 } }
   storeNPS: {},       // { 'Bourbonnais': 1.0 } — Fiscal NPS at the store level
@@ -1012,15 +1051,22 @@ function invertRank(rawRank, total) {
   return Math.max(1, total - n + 1);
 }
 
-// Positive-framed rank label, expects DISPLAY rank (1=best).
+// Percentile-banded rank label. Expects DISPLAY rank (1 = best).
+// Bands: 0-20% green, 20-40% yellow, 40-60% orange, 60-80% reddish-orange,
+// 80-100% red. The label shows the actual percentile ("Top X%") so reps see
+// exactly where they sit; color tells them how they're trending vs the bands.
 function rankLabel(displayRank, total) {
-  if (!displayRank || !total) return { cls: 'rank-mid', label: '—' };
+  if (!displayRank || !total) return { cls: 'pct-na', label: '—', pctNum: null };
   const pct = displayRank / total;
-  if (pct <= 0.10) return { cls: 'rank-top',    label: 'Top Performer' };
-  if (pct <= 0.25) return { cls: 'rank-strong', label: 'Strong' };
-  if (pct <= 0.50) return { cls: 'rank-mid',    label: 'Above Middle' };
-  if (pct <= 0.75) return { cls: 'rank-low',    label: 'Building' };
-  return { cls: 'rank-bottom', label: 'Focus Area' };
+  // Show "Top X%" — round 0.1% up to 1% so we never display "Top 0%".
+  const pctNum = Math.max(1, Math.round(pct * 100));
+  let cls;
+  if (pct <= 0.20) cls = 'pct-green';
+  else if (pct <= 0.40) cls = 'pct-yellow';
+  else if (pct <= 0.60) cls = 'pct-orange';
+  else if (pct <= 0.80) cls = 'pct-red-orange';
+  else cls = 'pct-red';
+  return { cls, label: `Top ${pctNum}%`, pctNum };
 }
 
 function setStatus(el, msg, kind) {
@@ -1037,13 +1083,18 @@ document.querySelectorAll('.accordion-header').forEach(h => {
 /* ---------- DATA LOADING ---------- */
 async function loadAll() {
   try {
-    const [dir, salesBuf, stBuf] = await Promise.all([
+    const [dir, salesBuf, stBuf, salesCommits] = await Promise.all([
       fetch(CONFIG.STORE_DIRECTORY_URL + '?cb=' + Date.now()).then(r => r.json()),
       fetch(CONFIG.SALES_REPORT_URL + '?cb=' + Date.now()).then(r => r.arrayBuffer()),
       fetch(CONFIG.SHOPPERTRACK_URL + '?cb=' + Date.now()).then(r => r.arrayBuffer()),
+      // Sales report's last-uploaded date. Soft-fails to null if rate-limited.
+      fetch(CONFIG.SALES_REPORT_COMMITS_URL).then(r => r.ok ? r.json() : null).catch(() => null),
     ]);
 
     STATE.directory = dir;
+    const lastCommitDate = salesCommits && salesCommits[0] && salesCommits[0].commit
+      && (salesCommits[0].commit.committer || salesCommits[0].commit.author);
+    STATE.salesReportDate = lastCommitDate ? new Date(lastCommitDate.date) : null;
     parseSalesReport(salesBuf);
     parseShopperTrack(stBuf);
     populateStoreDropdown();
@@ -1453,10 +1504,36 @@ function onGenerate() {
   $('scHours').textContent = rep.hours != null ? Number(rep.hours).toFixed(1) : '—';
   const short = stripXfinity(store);
 
-  // Estimated blended wage banner — show only if the sales report has it
-  if (rep.blendedWage != null && !isNaN(rep.blendedWage)) {
-    $('scWageAmount').textContent = '$' + Number(rep.blendedWage).toFixed(2);
+  // Headline banner: National Rank (left) + Estimated Blended Wage (right).
+  // Only show if we have at least one of the two pieces of info.
+  const totalReps = STATE.reps.length;
+  const hasRank = rep.rank != null && totalReps;
+  const hasWage = rep.blendedWage != null && !isNaN(rep.blendedWage);
+  if (hasRank || hasWage) {
     $('scWageBanner').style.display = '';
+    if (hasRank) {
+      $('scBannerRank').textContent = `#${rep.rank} of ${totalReps}`;
+      const lab = rankLabel(rep.rank, totalReps);
+      const pill = $('scBannerPctPill');
+      pill.textContent = lab.label;
+      pill.className = 'rank-pill ' + lab.cls;
+    } else {
+      $('scBannerRank').textContent = '—';
+      $('scBannerPctPill').textContent = '—';
+      $('scBannerPctPill').className = 'rank-pill pct-na';
+    }
+    if (hasWage) {
+      $('scWageAmount').textContent = '$' + Number(rep.blendedWage).toFixed(2);
+      const srDate = STATE.salesReportDate
+        ? STATE.salesReportDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
+        : null;
+      $('scWageFoot').textContent = srDate
+        ? `Based on the ${srDate} Sales Report · estimate only`
+        : 'estimate only';
+    } else {
+      $('scWageAmount').textContent = '—';
+      $('scWageFoot').textContent = 'wage estimate unavailable';
+    }
   } else {
     $('scWageBanner').style.display = 'none';
   }
@@ -1936,9 +2013,9 @@ function buildEmailHTML(rep, grade) {
 
   // === National ranking table ===
   const pillStyle = (cls) => {
-    const bg = ({ 'rank-top':'#d6f6e3','rank-strong':'#dceffd','rank-mid':'#fff3d6','rank-low':'#ffe1d6','rank-bottom':'#ffd6d6' })[cls] || '#eee';
-    const fg = ({ 'rank-top':'#136c3f','rank-strong':'#134f7d','rank-mid':'#8a5a00','rank-low':'#993300','rank-bottom':'#8a1a1a' })[cls] || '#333';
-    return `display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;background:${bg};color:${fg};`;
+    const bg = ({ 'pct-green':'#1ec773','pct-yellow':'#f4c542','pct-orange':'#ff8a00','pct-red-orange':'#ff5a3c','pct-red':'#d92727','pct-na':'#eef1f6' })[cls] || '#eee';
+    const fg = ({ 'pct-green':'#fff','pct-yellow':'#4a3500','pct-orange':'#fff','pct-red-orange':'#fff','pct-red':'#fff','pct-na':'#6b7a90' })[cls] || '#333';
+    return `display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;background:${bg};color:${fg};`;
   };
   const rankCell = (rank, total, label) => rank
     ? `<div style="font-weight:600;line-height:1.2;margin-bottom:4px;">#${rank} of ${total}</div><span style="${pillStyle(label.cls)}">${label.label}</span>`
@@ -2132,17 +2209,48 @@ function buildEmailHTML(rep, grade) {
     <!-- Body -->
     <div class="inner-pad" style="padding:24px 28px;">
 
-      ${(rep.blendedWage != null && !isNaN(rep.blendedWage)) ? `
-      <!-- Estimated blended wage banner -->
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin-bottom:18px;">
-        <tr>
-          <td style="background:#fff4d2;background-image:linear-gradient(135deg,#fff4d2 0%,#ffe9a8 50%,#ffd870 100%);border:2px solid #d4a017;border-radius:14px;padding:18px 22px;text-align:center;">
-            <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1.3px;color:#5f4408;">💰 Estimated Blended Wage</div>
-            <div style="font-size:36px;font-weight:900;color:#5f4408;line-height:1.1;margin:6px 0 4px;font-variant-numeric:tabular-nums;">$${Number(rep.blendedWage).toFixed(2)}<span style="font-size:18px;font-weight:600;opacity:.75;"> / hour</span></div>
-            <div style="font-size:12px;color:#8a6816;font-style:italic;">Based on your year-to-date performance · estimate only</div>
-          </td>
-        </tr>
-      </table>` : ''}
+      ${(() => {
+        // Headline banner: rank on left, wage on right, navy gradient.
+        const total = STATE.reps.length;
+        const hasRank = rep.rank != null && total;
+        const hasWage = rep.blendedWage != null && !isNaN(rep.blendedWage);
+        if (!hasRank && !hasWage) return '';
+
+        const rankLab = hasRank ? rankLabel(rep.rank, total) : null;
+        const rankPillBg = rankLab ? ({ 'pct-green':'#1ec773','pct-yellow':'#f4c542','pct-orange':'#ff8a00','pct-red-orange':'#ff5a3c','pct-red':'#d92727','pct-na':'#eef1f6' })[rankLab.cls] : '#eee';
+        const rankPillFg = rankLab ? ({ 'pct-green':'#fff','pct-yellow':'#4a3500','pct-orange':'#fff','pct-red-orange':'#fff','pct-red':'#fff','pct-na':'#6b7a90' })[rankLab.cls] : '#333';
+        const rankBlock = hasRank
+          ? `<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1.3px;color:#f6a01b;margin-bottom:8px;">🏅 National Rank</div>
+             <div style="font-size:28px;font-weight:900;color:#fff;line-height:1.1;font-variant-numeric:tabular-nums;">#${rep.rank} of ${total}</div>
+             <div style="margin-top:8px;"><span style="display:inline-block;padding:4px 14px;border-radius:999px;font-size:13px;font-weight:700;background:${rankPillBg};color:${rankPillFg};">${rankLab.label}</span></div>`
+          : `<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1.3px;color:#f6a01b;">🏅 National Rank</div><div style="font-size:24px;color:rgba(255,255,255,.6);">—</div>`;
+
+        const srDate = STATE.salesReportDate
+          ? STATE.salesReportDate.toLocaleDateString(undefined, { month:'long', day:'numeric', year:'numeric' })
+          : null;
+        const wageFoot = hasWage
+          ? (srDate ? `Based on the ${esc(srDate)} Sales Report · estimate only` : 'estimate only')
+          : 'wage estimate unavailable';
+        const wageBlock = hasWage
+          ? `<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1.3px;color:#f6a01b;margin-bottom:8px;">💰 Estimated Blended Wage</div>
+             <div style="font-size:32px;font-weight:900;color:#fff;line-height:1.1;font-variant-numeric:tabular-nums;">$${Number(rep.blendedWage).toFixed(2)}<span style="font-size:16px;font-weight:600;opacity:.8;"> / hour</span></div>
+             <div style="font-size:12px;color:rgba(255,255,255,.75);font-style:italic;margin-top:6px;">${wageFoot}</div>`
+          : `<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1.3px;color:#f6a01b;">💰 Estimated Blended Wage</div><div style="font-size:24px;color:rgba(255,255,255,.6);margin-top:6px;">—</div>`;
+
+        return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin-bottom:18px;">
+          <tr>
+            <td style="background:#143b6d;background-image:linear-gradient(135deg,#0a2a52 0%,#143b6d 55%,#1e4d8f 100%);border:2px solid #f6a01b;border-radius:14px;padding:18px 22px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td valign="middle" class="stack-col" style="width:48%;text-align:center;padding:6px 12px;">${rankBlock}</td>
+                  <td class="stack-col" style="width:1%;border-left:1px solid rgba(255,255,255,.18);padding:0;line-height:0;font-size:0;">&nbsp;</td>
+                  <td valign="middle" class="stack-col" style="width:48%;text-align:center;padding:6px 12px;">${wageBlock}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>`;
+      })()}
 
       ${heroHtml}
 
