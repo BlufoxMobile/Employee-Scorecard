@@ -150,6 +150,60 @@
   }
   .field-disabled input { background: #d8e6f5; opacity: .85; }
 
+  /* Email + fixed @blufoxmobile.com suffix */
+  .email-suffix-wrap {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bf-blue-light);
+  }
+  .email-suffix-wrap input {
+    border: 0 !important;
+    border-radius: 0 !important;
+    flex: 1 1 auto;
+    background: transparent;
+  }
+  .email-suffix {
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    background: #84b7e2;
+    color: var(--bf-text);
+    font-weight: 600;
+    font-size: 14px;
+    border-left: 1px solid rgba(0,0,0,.08);
+    white-space: nowrap;
+  }
+
+  /* Opportunities Yes/No list */
+  .opp-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 6px;
+    border-bottom: 1px solid rgba(255,255,255,.10);
+    color: #e8efff;
+    font-size: 14px;
+  }
+  .opp-row:last-child { border-bottom: 0; }
+  .opp-radios { display: flex; gap: 14px; flex: 0 0 auto; }
+  .opp-radios label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: #e8efff;
+    font-weight: 500;
+    user-select: none;
+  }
+  .opp-radios input[type="radio"] {
+    accent-color: var(--bf-orange);
+    width: 16px; height: 16px;
+  }
+
   .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   @media (max-width: 640px) { .row-2 { grid-template-columns: 1fr; } }
 
@@ -315,6 +369,32 @@
   }
   .opp-block.areas .tag { background: #fff1e8; color: #8a3a0e; }
 
+  /* Yes/No pills used on the scorecard for each Opportunity row */
+  .opp-result-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    font-size: 13.5px;
+    border-bottom: 1px solid #eaf0fa;
+  }
+  .opp-result-row:last-child { border-bottom: 0; }
+  .opp-result-row .lbl { color: var(--bf-text); flex: 1 1 auto; }
+  .opp-pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    flex: 0 0 auto;
+  }
+  .opp-pill.yes { background: #d6f6e3; color: #136c3f; }
+  .opp-pill.no  { background: #ffe1d6; color: #993300; }
+  .opp-pill.na  { background: #eef1f6; color: #6b7a90; }
+
   .sc-footer {
     padding: 18px 28px;
     background: #f4f8fd;
@@ -409,8 +489,16 @@
       <div class="accordion open" data-acc="manual">
         <div class="accordion-header"><span>Manual entries (not in the sales report):</span><span class="chev">▼</span></div>
         <div class="accordion-body">
-          <p class="accordion-subtitle">NPS &amp; T-Sheets come from RQ4. Triple/Quad plays aren't tracked in the daily report.</p>
           <div class="divider"></div>
+
+          <div class="field">
+            <label>Employee Email <span class="req">*</span></label>
+            <div class="email-suffix-wrap">
+              <input id="empEmail" type="text" placeholder="firstname.lastname" />
+              <span class="email-suffix">@blufoxmobile.com</span>
+            </div>
+            <div class="hint">Auto-filled from the employee name. Edit if the address differs. The email is sent here.</div>
+          </div>
 
           <div class="row-2">
             <div class="field">
@@ -433,6 +521,16 @@
               <input id="empQuads" type="number" placeholder="e.g., 1" />
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Employee Opportunities — Yes/No checklist -->
+      <div class="accordion open" data-acc="opportunities">
+        <div class="accordion-header"><span>Employee Opportunities (Yes / No):</span><span class="chev">▼</span></div>
+        <div class="accordion-body">
+          <p class="accordion-subtitle">Mark each item as you observed it during this coaching period.</p>
+          <div class="divider"></div>
+          <div id="opportunitiesList"></div>
         </div>
       </div>
 
@@ -566,6 +664,24 @@
         </div>
       </div>
 
+      <!-- Action Items + Employee Opportunities — side-by-side like the original card -->
+      <div class="sc-row">
+        <div class="sc-card">
+          <h3>Action Items</h3>
+          <div class="sc-kv"><span class="k">XM Needed</span><span class="v" id="scXMNeeded">—</span></div>
+          <div class="sc-kv"><span class="k">RGUs Needed</span><span class="v" id="scRGUsNeeded">—</span></div>
+          <div class="sc-kv"><span class="k">Watches/Tablets Needed</span><span class="v" id="scWatchTabNeeded">—</span></div>
+          <div class="sc-kv"><span class="k">Accessories Needed</span><span class="v" id="scAccNeeded">—</span></div>
+          <div class="sc-kv"><span class="k">TP Percentage</span><span class="v" id="scTPPct">—</span></div>
+          <div class="sc-kv"><span class="k">QP Percentage</span><span class="v" id="scQPPct">—</span></div>
+          <div class="sc-kv"><span class="k">T-Sheets Needed</span><span class="v" id="scTSheetsNeeded">—</span></div>
+        </div>
+        <div class="sc-card">
+          <h3>Employee Opportunities</h3>
+          <div id="scOpportunities"></div>
+        </div>
+      </div>
+
       <div class="sc-card" id="scNotesBlock" style="display:none;">
         <h3>Additional Coaching Notes</h3>
         <div id="scNotes" style="white-space:pre-wrap; font-size:14px;"></div>
@@ -615,8 +731,60 @@ const STATE = {
   selectedEmployee: null,
   goalsForReport: null,    // computed Goal Tracking rows
   rankingForReport: null,  // computed National Ranking rows
+  actionsForReport: null,  // computed Action Items
   gradeForReport: null,
 };
+
+// === Employee Opportunities — Yes/No checklist ===
+// Order matters; this is the order displayed in the form and the scorecard.
+const OPPORTUNITIES = [
+  { id: 'oppInternet',    label: 'Can present Internet Quote Sheet properly' },
+  { id: 'oppMobile',      label: 'Can present Mobile Quote Sheets properly' },
+  { id: 'oppUpgrade',     label: 'Can present upgrade quote sheets properly' },
+  { id: 'oppBundle',      label: 'Can present bundle quote sheets properly' },
+  { id: 'oppUniform',     label: 'Employee is always in uniform' },
+  { id: 'oppNameTag',     label: 'Employee wears name tag daily' },
+  { id: 'oppPunctual',    label: 'Employee shows up punctually for each shift' },
+  { id: 'oppPitchesAll',  label: 'Employee pitches to every customer, every time' },
+  { id: 'oppPitchesNPS',  label: 'Employee pitches NPS survey to every customer' },
+];
+
+function renderOpportunities() {
+  const root = $('opportunitiesList');
+  root.innerHTML = OPPORTUNITIES.map(o => `
+    <div class="opp-row">
+      <span class="opp-label">${o.label}</span>
+      <span class="opp-radios">
+        <label><input type="radio" name="${o.id}" value="yes">Yes</label>
+        <label><input type="radio" name="${o.id}" value="no">No</label>
+      </span>
+    </div>
+  `).join('');
+}
+function readOpportunities() {
+  const out = {};
+  OPPORTUNITIES.forEach(o => {
+    const el = document.querySelector(`input[name="${o.id}"]:checked`);
+    out[o.id] = el ? el.value : null;   // 'yes' | 'no' | null
+  });
+  return out;
+}
+function clearOpportunities() {
+  OPPORTUNITIES.forEach(o => {
+    document.querySelectorAll(`input[name="${o.id}"]`).forEach(r => { r.checked = false; });
+  });
+}
+
+// Normalize the email input value into a full @blufoxmobile.com address.
+function normalizeEmpEmail(raw) {
+  let v = (raw || '').trim().toLowerCase();
+  if (!v) return '';
+  // Strip a typed @blufoxmobile.com suffix if present, then re-append cleanly.
+  v = v.replace(/@blufoxmobile\.com\s*$/i, '');
+  // Strip any other @domain (manager typed an outside address by mistake)
+  v = v.replace(/@.*$/, '');
+  return v ? v + '@blufoxmobile.com' : '';
+}
 
 /* ---------- helpers ---------- */
 const $ = (id) => document.getElementById(id);
@@ -885,6 +1053,7 @@ function populateStoreDropdown() {
   $('btnDownload').addEventListener('click', onDownloadPDF);
   $('btnPrint').addEventListener('click', () => window.print());
   $('btnSubmit').addEventListener('click', onSubmit);
+  renderOpportunities();
 }
 
 function onStoreChange() {
@@ -946,8 +1115,9 @@ function computeGoals(rep) {
 }
 
 function clearMTDFields() {
-  ['empNPS','empTSheets','empXM','empRGUs','empWatchTab','empAccDollars','empInternet','empTriples','empQuads','overallGrade','companyRank']
+  ['empEmail','empNPS','empTSheets','empXM','empRGUs','empWatchTab','empAccDollars','empInternet','empTriples','empQuads','overallGrade','companyRank']
     .forEach(id => $(id).value = '');
+  clearOpportunities();
 }
 
 function onEmployeeChange() {
@@ -964,6 +1134,12 @@ function onEmployeeChange() {
   $('empInternet').value   = rep.hsi ?? '';
   if (rep.nps != null && $('empNPS').value === '') {
     $('empNPS').value = rep.nps; // pre-fill, manager can override
+  }
+
+  // Auto-fill employee email guess (firstname.lastname). Manager can edit.
+  // The visible field strips the suffix; the suffix is shown as a chip.
+  if (!$('empEmail').value) {
+    $('empEmail').value = (rep.name || '').toLowerCase().replace(/\s+/g, '.');
   }
 
   // Company rank + auto-letter grade
@@ -1157,6 +1333,45 @@ function onGenerate() {
   $('scTrafficMTD').textContent = goals.storeTraffic ? fmtNum(goals.storeTraffic) : '—';
   $('scTraffic').textContent = $('dailyShopperTrack').value ? fmtNum($('dailyShopperTrack').value, 1) : '—';
   $('scStaff').textContent   = $('numEmployees').value || '—';
+
+  // ---------- Action Items (computed) ----------
+  // "Needed" = max(0, goal − actual). Round up to whole units for the count
+  // items so the rep sees an integer to chase.
+  const need = (g, a) => Math.max(0, Math.ceil((Number(g) || 0) - (Number(a) || 0)));
+  const moneyNeed = (g, a) => Math.max(0, ((Number(g) || 0) - (Number(a) || 0)));
+  // tshActual already declared above in the Goal Tracking block; reuse it.
+  const triplesActual = Number($('empTriples').value) || 0;
+  const quadsActual = Number($('empQuads').value) || 0;
+  const hsi = Number(rep.hsi) || 0;
+  const tpPct = hsi > 0 ? (triplesActual / hsi) * 100 : 0;
+  const qpPct = hsi > 0 ? (quadsActual / hsi) * 100 : 0;
+  const actions = {
+    xmNeeded:        need(goals.xm, rep.grossMobileSalesMTD),
+    rgusNeeded:      need(goals.rgu, rep.newRGU),
+    watchTabNeeded:  need(goals.watTab, (Number(rep.watchesMTD) || 0) + (Number(rep.tabletMTD) || 0)),
+    accNeeded:       moneyNeed(goals.accessoryDollars, rep.accessoryDollars),
+    tsheetsNeeded:   need(goals.tsheet, tshActual),
+    tpPercentage:    tpPct,
+    qpPercentage:    qpPct,
+  };
+  STATE.actionsForReport = actions;
+  $('scXMNeeded').textContent       = fmtNum(actions.xmNeeded);
+  $('scRGUsNeeded').textContent     = fmtNum(actions.rgusNeeded);
+  $('scWatchTabNeeded').textContent = fmtNum(actions.watchTabNeeded);
+  $('scAccNeeded').textContent      = fmtMoney(actions.accNeeded);
+  $('scTPPct').textContent          = tpPct.toFixed(1) + '%';
+  $('scQPPct').textContent          = qpPct.toFixed(1) + '%';
+  $('scTSheetsNeeded').textContent  = fmtNum(actions.tsheetsNeeded);
+
+  // ---------- Employee Opportunities (Yes/No) ----------
+  const opps = readOpportunities();
+  const oppHost = $('scOpportunities');
+  oppHost.innerHTML = OPPORTUNITIES.map(o => {
+    const v = opps[o.id];
+    const pillCls = v === 'yes' ? 'yes' : (v === 'no' ? 'no' : 'na');
+    const pillText = v === 'yes' ? 'Yes' : (v === 'no' ? 'No' : '—');
+    return `<div class="opp-result-row"><span class="lbl">${o.label}</span><span class="opp-pill ${pillCls}">${pillText}</span></div>`;
+  }).join('');
 
   // Coaching
   const strengthsTags = $('scStrengthsTags');
@@ -1418,6 +1633,34 @@ function buildEmailHTML(rep, grade) {
   const areasCard = cardOpen('Areas to Improve') +
     `<div style="white-space:pre-wrap;font-size:14px;">${esc($('areas').value || '—')}</div>` + cardClose;
 
+  // Action Items
+  const a = STATE.actionsForReport || {};
+  const actionsCard = cardOpen('Action Items') +
+    `<table style="width:100%;border-collapse:collapse;">${
+      kv('XM Needed',             fmtNum(a.xmNeeded ?? 0)) +
+      kv('RGUs Needed',           fmtNum(a.rgusNeeded ?? 0)) +
+      kv('Watches/Tablets Needed', fmtNum(a.watchTabNeeded ?? 0)) +
+      kv('Accessories Needed',    fmtMoney(a.accNeeded ?? 0)) +
+      kv('TP Percentage',         (a.tpPercentage ?? 0).toFixed(1) + '%') +
+      kv('QP Percentage',         (a.qpPercentage ?? 0).toFixed(1) + '%') +
+      kv('T-Sheets Needed',       fmtNum(a.tsheetsNeeded ?? 0))
+    }</table>` + cardClose;
+
+  // Employee Opportunities
+  const opps = readOpportunities();
+  const oppPill = (v) => {
+    if (v === 'yes') return '<span style="display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#d6f6e3;color:#136c3f;text-transform:uppercase;letter-spacing:.5px;">Yes</span>';
+    if (v === 'no')  return '<span style="display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#ffe1d6;color:#993300;text-transform:uppercase;letter-spacing:.5px;">No</span>';
+    return '<span style="display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:#eef1f6;color:#6b7a90;">—</span>';
+  };
+  const oppCard = cardOpen('Employee Opportunities') +
+    `<table style="width:100%;border-collapse:collapse;">${
+      OPPORTUNITIES.map(o => `<tr>
+        <td style="padding:5px 0;font-size:13px;color:#0e2742;">${esc(o.label)}</td>
+        <td style="padding:5px 0;text-align:right;">${oppPill(opps[o.id])}</td>
+      </tr>`).join('')
+    }</table>` + cardClose;
+
   // Two-column table helper (renders side-by-side on desktop, stacks gracefully)
   const twoCol = (left, right) => `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;margin-bottom:0;">
     <tr>
@@ -1479,6 +1722,7 @@ function buildEmailHTML(rep, grade) {
         </table>` + cardClose}
 
       ${twoCol(npsCard, ctxCard)}
+      ${twoCol(actionsCard, oppCard)}
       ${twoCol(strengthsCard, areasCard)}
       ${notesCard}
 
@@ -1518,12 +1762,16 @@ async function onSubmit() {
     const { blob, filename } = await makePDF();
     const grade = STATE.gradeForReport || $('overallGrade').value || 'C';
     const total = STATE.reps.length;
-    const empEmail = (rep.name || '').toLowerCase().replace(/\s+/g, '.') + '@blufoxmobile.com';
+    // Manager-typed (or auto-filled) employee email, normalized to @blufoxmobile.com.
+    // Falls back to the name-based guess if the field is empty.
+    const empEmail = normalizeEmpEmail($('empEmail').value)
+                  || ((rep.name || '').toLowerCase().replace(/\s+/g, '.') + '@blufoxmobile.com');
 
     const payload = {
       // Routing — manager identity comes from the store directory (store manager for this store)
       employee_name: rep.name,
-      employee_email_guess: empEmail,                   // Zap can override with real lookup
+      employee_email: empEmail,                         // ← Outlook step uses this for "To"
+      employee_email_guess: empEmail,                   // kept for backwards-compat in existing Zaps
       manager_name: $('storeMgrName').value,            // store manager = coaching manager
       manager_email: $('storeMgrEmail').value,
       store_manager_name: $('storeMgrName').value,
@@ -1577,6 +1825,8 @@ async function onSubmit() {
         store_mtd_traffic: (STATE.shoppertrack[stripXfinity(STATE.selectedStore)] || {}).mtdTraffic,
         store_headcount: $('numEmployees').value,
       },
+      action_items: STATE.actionsForReport || {},
+      opportunities: readOpportunities(),
       // Both raw (sales-report higher=better) and display (#1=best) ranks for
       // each category, plus the store's national rank in that category.
       category_ranks_raw: {
