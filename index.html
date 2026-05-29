@@ -1814,13 +1814,13 @@ function buildEmailHTML(rep, grade) {
   const heroHtml = `
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin-bottom:18px;">
       <tr>
-        <td valign="top" style="width:50%;padding-right:8px;">
+        <td valign="top" class="stack-col" style="width:50%;padding-right:8px;padding-bottom:0;">
           <div style="background:linear-gradient(135deg,#e8f8ee 0%,#d6f6e3 100%);border:2px solid #21c46c;border-radius:14px;padding:16px 18px;">
             <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:#136c3f;margin-bottom:10px;">🏆 What You Crushed</div>
             ${winsItems}
           </div>
         </td>
-        <td valign="top" style="width:50%;padding-left:8px;">
+        <td valign="top" class="stack-col" style="width:50%;padding-left:8px;padding-bottom:0;">
           <div style="background:linear-gradient(135deg,#fff7eb 0%,#ffeacf 100%);border:2px solid #f6a01b;border-radius:14px;padding:16px 18px;">
             <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:#8a5a00;margin-bottom:10px;">🎯 Where to Focus Next</div>
             ${focusItems}
@@ -2010,11 +2010,13 @@ function buildEmailHTML(rep, grade) {
   const oppCard = cardOpen('Employee Opportunities') +
     `<table style="width:100%;border-collapse:collapse;">${OPPORTUNITIES.map(oppLineRow).join('')}</table>` + cardClose;
 
-  // Two-column table helper (renders side-by-side on desktop, stacks gracefully)
+  // Two-column table helper. On desktop, renders side-by-side. On mobile,
+  // the `stack-col` class + the <style> block in the email head forces each
+  // <td> to display:block; width:100% so cards stack instead of getting crushed.
   const twoCol = (left, right) => `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;margin-bottom:0;">
     <tr>
-      <td valign="top" style="width:50%;padding-right:8px;">${left}</td>
-      <td valign="top" style="width:50%;padding-left:8px;">${right}</td>
+      <td valign="top" class="stack-col" style="width:50%;padding-right:8px;padding-bottom:0;">${left}</td>
+      <td valign="top" class="stack-col" style="width:50%;padding-left:8px;padding-bottom:0;">${right}</td>
     </tr>
   </table>`;
 
@@ -2023,25 +2025,56 @@ function buildEmailHTML(rep, grade) {
     `<div style="white-space:pre-wrap;font-size:14px;">${esc(notes)}</div>` + cardClose : '';
 
   // === FULL EMAIL ===
+  // The <style> block holds the mobile breakpoint. Apple Mail, iOS/Android
+  // Outlook, and Gmail iOS all honor it; Outlook desktop ignores it and
+  // falls back to the inline styles (which render the desktop two-column
+  // layout — fine on a desktop monitor).
   return `<!-- Blufox Employee Scorecard email — auto-generated -->
-<div style="font-family:Arial,Helvetica,sans-serif;max-width:760px;margin:0 auto;color:#0e2742;background:#aedaff;padding:20px;">
+<style type="text/css">
+  @media only screen and (max-width: 620px) {
+    .container { padding: 12px !important; }
+    .inner-pad { padding: 16px !important; }
+    .stack-col {
+      display: block !important;
+      width: 100% !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+      padding-bottom: 12px !important;
+      box-sizing: border-box !important;
+    }
+    .sig-cell {
+      display: block !important;
+      width: 100% !important;
+      margin-bottom: 14px !important;
+    }
+    .sig-spacer { display: none !important; }
+    .header-cell, .header-badge-cell {
+      display: block !important;
+      width: 100% !important;
+      text-align: center !important;
+      padding: 8px 16px !important;
+    }
+    .header-name { font-size: 20px !important; }
+  }
+</style>
+<div class="container" style="font-family:Arial,Helvetica,sans-serif;max-width:760px;margin:0 auto;color:#0e2742;background:#aedaff;padding:20px;">
   <div style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(10,42,82,.10);">
 
     <!-- Dark header bar -->
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#0a2a52;color:#fff;border-collapse:collapse;">
       <tr>
-        <td style="padding:22px 28px;" valign="middle">
-          <div style="color:#f6a01b;font-size:22px;font-weight:bold;">${esc(rep.name)} — ${esc(grade)}</div>
+        <td class="header-cell" style="padding:22px 28px;" valign="middle">
+          <div class="header-name" style="color:#f6a01b;font-size:22px;font-weight:bold;">${esc(rep.name)} — ${esc(grade)}</div>
           <div style="font-size:14px;margin-top:4px;opacity:.9;">${esc(rep.title || 'Sales')} · ${esc(STATE.selectedStore)} · Coaching as of ${new Date().toLocaleDateString()}</div>
         </td>
-        <td style="padding:22px 28px;text-align:right;" valign="middle" width="100">
+        <td class="header-badge-cell" style="padding:22px 28px;text-align:right;" valign="middle" width="100">
           <div style="display:inline-block;background:${gradeBg};color:${gradeFg};width:64px;height:64px;border-radius:50%;text-align:center;line-height:64px;font-size:32px;font-weight:bold;">${esc(grade)}</div>
         </td>
       </tr>
     </table>
 
     <!-- Body -->
-    <div style="padding:24px 28px;">
+    <div class="inner-pad" style="padding:24px 28px;">
 
       ${heroHtml}
 
@@ -2069,11 +2102,11 @@ function buildEmailHTML(rep, grade) {
       <!-- Signature lines -->
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:8px;">
         <tr>
-          <td style="border-top:1px solid #c8d3e2;padding-top:6px;font-size:12px;color:#486490;text-align:center;width:33%;">Employee Signature</td>
-          <td style="width:16px;"></td>
-          <td style="border-top:1px solid #c8d3e2;padding-top:6px;font-size:12px;color:#486490;text-align:center;width:33%;">Manager Signature</td>
-          <td style="width:16px;"></td>
-          <td style="border-top:1px solid #c8d3e2;padding-top:6px;font-size:12px;color:#486490;text-align:center;width:33%;">Date</td>
+          <td class="sig-cell" style="border-top:1px solid #c8d3e2;padding-top:6px;font-size:12px;color:#486490;text-align:center;width:33%;">Employee Signature</td>
+          <td class="sig-spacer" style="width:16px;"></td>
+          <td class="sig-cell" style="border-top:1px solid #c8d3e2;padding-top:6px;font-size:12px;color:#486490;text-align:center;width:33%;">Manager Signature</td>
+          <td class="sig-spacer" style="width:16px;"></td>
+          <td class="sig-cell" style="border-top:1px solid #c8d3e2;padding-top:6px;font-size:12px;color:#486490;text-align:center;width:33%;">Date</td>
         </tr>
       </table>
     </div>
@@ -2096,10 +2129,11 @@ async function onSubmit() {
 
   const btn = $('btnSubmit');
   btn.disabled = true; btn.textContent = '⏳ Sending…';
-  setStatus($('submitStatus'), 'Generating PDF and sending the scorecard…', '');
+  setStatus($('submitStatus'), 'Sending the scorecard…', '');
 
   try {
-    const { blob, filename } = await makePDF();
+    // The email body already contains the full scorecard — no PDF needed.
+    // Managers can still hit "Download PDF" if they want a local copy.
     const grade = STATE.gradeForReport || $('overallGrade').value || 'C';
     const total = STATE.reps.length;
     // Manager-typed (or auto-filled) employee email, normalized to @blufoxmobile.com.
@@ -2197,16 +2231,12 @@ async function onSubmit() {
       areas_to_improve: $('areas').value,
       additional_notes: $('notes').value,
 
-      // Email content
+      // Email content — body is the entire scorecard, no attachment needed.
       email_subject: `Scorecard — ${rep.name} (${grade}) — ${STATE.selectedStore}`,
       email_body_html: buildEmailHTML(rep, grade),
-
-      // PDF is attached separately as a real file (see buildFormData below).
-      // No base64 — Zapier sees a normal file upload in the "pdf" field.
-      pdf_filename: filename,
     };
 
-    const fd = buildFormData(payload, blob, filename);
+    const fd = buildFormData(payload, null, null);
     const resp = await fetch(CONFIG.ZAPIER_WEBHOOK_URL, {
       method: 'POST',
       body: fd,    // browser sets Content-Type: multipart/form-data; boundary=...
