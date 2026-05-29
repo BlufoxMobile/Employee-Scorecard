@@ -1053,12 +1053,14 @@ function invertRank(rawRank, total) {
 
 // Percentile-banded rank label. Expects DISPLAY rank (1 = best).
 // Bands: 0-20% green, 20-40% yellow, 40-60% orange, 60-80% reddish-orange,
-// 80-100% red. The label shows the actual percentile ("Top X%") so reps see
-// exactly where they sit; color tells them how they're trending vs the bands.
+// 80-100% red. The label flips at the halfway mark so the number always
+// reads intuitively:
+//   percentile ≤ 50 → "Top X%"
+//   percentile > 50  → "Bottom (100-X)%"
+// E.g. rank #1026 of 1101 reads "Bottom 7%" instead of the misleading "Top 93%".
 function rankLabel(displayRank, total) {
   if (!displayRank || !total) return { cls: 'pct-na', label: '—', pctNum: null };
   const pct = displayRank / total;
-  // Show "Top X%" — round 0.1% up to 1% so we never display "Top 0%".
   const pctNum = Math.max(1, Math.round(pct * 100));
   let cls;
   if (pct <= 0.20) cls = 'pct-green';
@@ -1066,7 +1068,10 @@ function rankLabel(displayRank, total) {
   else if (pct <= 0.60) cls = 'pct-orange';
   else if (pct <= 0.80) cls = 'pct-red-orange';
   else cls = 'pct-red';
-  return { cls, label: `Top ${pctNum}%`, pctNum };
+  const label = pct <= 0.5
+    ? `Top ${pctNum}%`
+    : `Bottom ${Math.max(1, 100 - pctNum)}%`;
+  return { cls, label, pctNum };
 }
 
 function setStatus(el, msg, kind) {
@@ -1765,12 +1770,16 @@ function computeHero(rep, goalRows, rankRows, opps) {
   });
 
   // --- National-ranking signals ---
+  // Detail copy uses the same Top X% / Bottom X% phrasing the pills do.
   rankRows.forEach(r => {
     if (r.repRank && r.repTotal) {
       const pos = r.repRank / r.repTotal;
-      if (pos <= 0.10) wins.push({ label: r.label,  detail: `Top Performer nationally · #${r.repRank} of ${r.repTotal}`, weight: 2 });
-      else if (pos <= 0.25) wins.push({ label: r.label, detail: `Strong nationally · #${r.repRank} of ${r.repTotal}`, weight: 1.5 });
-      else if (pos > 0.75)  focus.push({ label: r.label, detail: `National rank #${r.repRank} of ${r.repTotal} — room to climb`, weight: 2 });
+      const lab = rankLabel(r.repRank, r.repTotal);
+      if (pos <= 0.20) {
+        wins.push({ label: r.label, detail: `${lab.label} nationally · #${r.repRank} of ${r.repTotal}`, weight: 2 - pos });
+      } else if (pos > 0.80) {
+        focus.push({ label: r.label, detail: `${lab.label} nationally · #${r.repRank} of ${r.repTotal}`, weight: 2 });
+      }
     }
   });
 
