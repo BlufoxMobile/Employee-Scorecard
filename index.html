@@ -716,10 +716,10 @@
           <div class="field">
             <label>Employee Email <span class="req">*</span></label>
             <div class="email-suffix-wrap">
-              <input id="empEmail" type="text" placeholder="firstname.lastname" />
+              <input id="empEmail" type="text" placeholder="enter local part of email" />
               <span class="email-suffix">@blufoxmobile.com</span>
             </div>
-            <div class="hint">Auto-filled from the employee name. Edit if the address differs. The email is sent here.</div>
+            <div class="hint">Type the local part of the rep's address. The scorecard is sent here.</div>
           </div>
 
           <div class="row-2">
@@ -1397,18 +1397,10 @@ function onEmployeeChange() {
     $('empNPS').value = rep.nps; // pre-fill, manager can override
   }
 
-  // Auto-fill employee email guess: most Blufox addresses are first initial +
-  // last name (e.g., Nancy Trombley → ntrombley). Manager edits if wrong.
-  if (!$('empEmail').value) {
-    const parts = (rep.name || '').trim().split(/\s+/);
-    if (parts.length >= 2) {
-      const first = parts[0];
-      const last  = parts.slice(1).join('');   // glue Mc Donald, Van Dyke, etc.
-      $('empEmail').value = (first.charAt(0) + last).toLowerCase();
-    } else if (parts.length === 1) {
-      $('empEmail').value = parts[0].toLowerCase();
-    }
-  }
+  // Employee email is NOT auto-filled — too many name→address mismatches.
+  // Manager types it manually each time. Clear any leftover value from a
+  // previous selection so the wrong address can't carry over.
+  $('empEmail').value = '';
 
   // Company rank + auto-letter grade
   $('companyRank').value = rep.rank != null ? `#${rep.rank} of ${STATE.reps.length}` : '';
@@ -2321,15 +2313,14 @@ async function onSubmit() {
     // Managers can still hit "Download PDF" if they want a local copy.
     const grade = STATE.gradeForReport || $('overallGrade').value || 'C';
     const total = STATE.reps.length;
-    // Manager-typed (or auto-filled) employee email, normalized to @blufoxmobile.com.
-    // Falls back to first-initial-last-name guess if the field is empty.
-    const guessLocal = (() => {
-      const parts = (rep.name || '').trim().split(/\s+/);
-      if (parts.length >= 2) return (parts[0].charAt(0) + parts.slice(1).join('')).toLowerCase();
-      return (parts[0] || '').toLowerCase();
-    })();
-    const empEmail = normalizeEmpEmail($('empEmail').value)
-                  || (guessLocal ? guessLocal + '@blufoxmobile.com' : '');
+    // Manager-typed employee email, normalized to @blufoxmobile.com.
+    // No auto-guess: we'd rather refuse to send than send to the wrong rep.
+    const empEmail = normalizeEmpEmail($('empEmail').value);
+    if (!empEmail) {
+      setStatus($('submitStatus'), 'Please fill in the Employee Email field before sending.', 'error');
+      btn.disabled = false; btn.textContent = '📧 Submit & Email';
+      return;
+    }
 
     const payload = {
       // Routing — manager identity comes from the store directory (store manager for this store)
