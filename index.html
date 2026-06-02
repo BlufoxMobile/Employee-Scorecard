@@ -729,7 +729,8 @@
             </div>
             <div class="field">
               <label>Total T-Sheets MTD</label>
-              <input id="empTSheets" type="number" placeholder="e.g., 23" />
+              <input id="empTSheets" type="number" placeholder="auto-pulled live" />
+              <div class="hint" id="tsheetsHint">Auto-pulled from the live T-Sheet feed. Edit if you need to override.</div>
             </div>
           </div>
 
@@ -955,6 +956,9 @@ const CONFIG = {
   // GitHub commits API → "when was the sales report last uploaded?"
   SALES_REPORT_COMMITS_URL: 'https://api.github.com/repos/BlufoxMobile/Daily-Sales-Report/commits?path=data/Sales%20Report.xlsx&per_page=1',
   SHOPPERTRACK_URL:    'https://raw.githubusercontent.com/BlufoxMobile/Daily-Sales-Report/main/data/shoppertrack.xlsx',
+  // T-Sheet Submissions — Google Apps Script web app behind the
+  // blufoxmobile.github.io/T-Sheet-Submissions/ page. Returns all submissions.
+  TSHEET_SCRIPT_URL:   'https://script.google.com/macros/s/AKfycbyQaa1yvggLJuw5dcme74vwAW3hSB3BvzCK40IhLThy-F8KZDFOF6gcyl8psNMd3yD-Cg/exec',
   // Zapier catch-hook the user provided
   ZAPIER_WEBHOOK_URL:  'https://hooks.zapier.com/hooks/catch/20441079/4b3u8xy/',
   REP_RANK_SHEET: 'Rep Rank',
@@ -964,6 +968,8 @@ const CONFIG = {
 const STATE = {
   directory: null,    // store-directory.json
   salesReportDate: null,  // Date of the last Sales Report.xlsx commit
+  tsheetsByRep: {},   // { 'Store|Rep Name': mtd_count } for current calendar month
+  tsheetsAsOf: null,  // Date the T-Sheet data was fetched
   reps: [],           // array of rep objects (parsed)
   shoppertrack: {},   // { 'Bourbonnais': { mtdAvgTraffic: 98.1, mtdTraffic: 2650 } }
   storeNPS: {},       // { 'Bourbonnais': 1.0 } — Fiscal NPS at the store level
@@ -1088,12 +1094,14 @@ document.querySelectorAll('.accordion-header').forEach(h => {
 /* ---------- DATA LOADING ---------- */
 async function loadAll() {
   try {
-    const [dir, salesBuf, stBuf, salesCommits] = await Promise.all([
+    const [dir, salesBuf, stBuf, salesCommits, tsheetData] = await Promise.all([
       fetch(CONFIG.STORE_DIRECTORY_URL + '?cb=' + Date.now()).then(r => r.json()),
       fetch(CONFIG.SALES_REPORT_URL + '?cb=' + Date.now()).then(r => r.arrayBuffer()),
       fetch(CONFIG.SHOPPERTRACK_URL + '?cb=' + Date.now()).then(r => r.arrayBuffer()),
       // Sales report's last-uploaded date. Soft-fails to null if rate-limited.
       fetch(CONFIG.SALES_REPORT_COMMITS_URL).then(r => r.ok ? r.json() : null).catch(() => null),
+      // Live T-Sheet submissions feed (Apps Script). Soft-fails to null.
+      fetch(CONFIG.TSHEET_SCRIPT_URL + '?t=' + Date.now()).then(r => r.ok ? r.json() : null).catch(() => null),
     ]);
 
     STATE.directory = dir;
@@ -1102,6 +1110,7 @@ async function loadAll() {
     STATE.salesReportDate = lastCommitDate ? new Date(lastCommitDate.date) : null;
     parseSalesReport(salesBuf);
     parseShopperTrack(stBuf);
+    parseTSheets(tsheetData);
     populateStoreDropdown();
 
     setStatus($('loadStatus'),
@@ -1301,6 +1310,27 @@ function parseShopperTrack(buf) {
   }
 }
 
+// Build a `Store|Rep` → MTD count map from the T-Sheets feed. Filters to the
+// CURRENT calendar month so the count stays in sync with how the rest of the
+// scorecard reports MTD numbers. Falls back to an empty map if the fetch
+// failed — the manual T-Sheets field still works as before.
+function parseTSheets(payload) {
+  STATE.tsheetsByRep = {};
+  STATE.tsheetsAsOf = null;
+  if (!payload || !payload.submissions) return;
+
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  payload.submissions.forEach(s => {
+    if (!s || !s.timestamp || !s.rep_name || !s.store) return;
+    // Cheap month check — string compare against ISO prefix.
+    if (s.timestamp.slice(0, 7) !== ym) return;
+    const key = s.store + '|' + s.rep_name;
+    STATE.tsheetsByRep[key] = (STATE.tsheetsByRep[key] || 0) + 1;
+  });
+  STATE.tsheetsAsOf = payload.fetched_at ? new Date(payload.fetched_at) : new Date();
+}
+
 /* ---------- UI POPULATION ---------- */
 function populateStoreDropdown() {
   const sel = $('storeSelect');
@@ -1401,6 +1431,25 @@ function onEmployeeChange() {
   // Manager types it manually each time. Clear any leftover value from a
   // previous selection so the wrong address can't carry over.
   $('empEmail').value = '';
+
+  // Auto-pull T-Sheets MTD from the live submissions feed. Match is
+  // (full store name) | (rep name) — both should match exactly with the
+  // T-Sheets data (e.g., "Bourbonnais Xfinity Store" | "Louis Yiakos").
+  const tsKey = STATE.selectedStore + '|' + rep.name;
+  const tsCount = STATE.tsheetsByRep[tsKey];
+  const tsHint = $('tsheetsHint');
+  if (tsCount != null) {
+    $('empTSheets').value = tsCount;
+    const asOf = STATE.tsheetsAsOf
+      ? STATE.tsheetsAsOf.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+      : 'now';
+    if (tsHint) tsHint.textContent = `Live: ${tsCount} T-Sheet${tsCount === 1 ? '' : 's'} this month (as of ${asOf}). Edit if you need to override.`;
+  } else {
+    $('empTSheets').value = 0;
+    if (tsHint) tsHint.textContent = STATE.tsheetsAsOf
+      ? 'No T-Sheets logged this month — enter manually if needed.'
+      : 'Live T-Sheets feed unavailable. Enter manually.';
+  }
 
   // Company rank + auto-letter grade
   $('companyRank').value = rep.rank != null ? `#${rep.rank} of ${STATE.reps.length}` : '';
