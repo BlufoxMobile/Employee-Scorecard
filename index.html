@@ -675,6 +675,7 @@
         <input id="storeMgrName" type="text" />
         <input id="storeMgrEmail" type="text" />
         <input id="dmEmail" type="text" />
+        <input id="asmEmail" type="text" />
         <input id="numEmployees" type="number" />
         <input id="dailyShopperTrack" type="number" />
         <input id="empXM" type="number" />
@@ -1356,6 +1357,7 @@ function onStoreChange() {
   $('storeMgrName').value  = (dir.storeManagerNames && dir.storeManagerNames[store]) || '';
   $('storeMgrEmail').value = (dir.storeManagers && dir.storeManagers[store]) || '';
   $('dmEmail').value       = (dir.storeDMs && dir.storeDMs[store]) || '';
+  $('asmEmail').value      = (dir.storeAMs && dir.storeAMs[store]) || '';
 
   const short = stripXfinity(store);
   const st = STATE.shoppertrack[short];
@@ -2381,6 +2383,7 @@ async function onSubmit() {
       store_manager_name: $('storeMgrName').value,
       store_manager_email: $('storeMgrEmail').value,
       district_manager_email: $('dmEmail').value,
+      asm_email: $('asmEmail').value,
 
       // Context
       store: STATE.selectedStore,
