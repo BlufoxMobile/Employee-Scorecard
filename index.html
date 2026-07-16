@@ -177,6 +177,72 @@
     white-space: nowrap;
   }
 
+  /* Employee email — locked (auto-pulled from Admin Panel) */
+  .email-locked {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid rgba(30,199,115,.55);
+    border-radius: 6px;
+    background: rgba(30,199,115,.14);
+  }
+  .email-locked .lock-badge {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    color: #06301c;
+    background: var(--bf-green);
+    padding: 3px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .email-locked .lock-value {
+    flex: 1 1 auto;
+    font-weight: 600;
+    color: #eafff4;
+    word-break: break-all;
+  }
+  .email-locked .lock-src {
+    flex: 0 0 auto;
+    font-size: 12px;
+  }
+  .email-locked .lock-src a { color: var(--bf-orange); text-decoration: none; }
+  .email-locked .lock-src a:hover { text-decoration: underline; }
+  .hint-warn { color: var(--bf-amber) !important; }
+  /* Suggestion chip shown when a close (non-exact) admin name is on file */
+  .email-suggest {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 9px 12px;
+    border: 1px dashed rgba(246,160,27,.6);
+    border-radius: 6px;
+    background: rgba(246,160,27,.10);
+    font-size: 12.5px;
+    color: #ffe9c7;
+  }
+  .email-suggest b { color: #fff; word-break: break-all; }
+  .email-suggest button {
+    flex: 0 0 auto;
+    border: 0;
+    border-radius: 5px;
+    padding: 5px 12px;
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+    background: var(--bf-orange);
+    color: #3a2600;
+  }
+  .email-suggest button:hover { background: var(--bf-orange-2); }
+
   /* Opportunities Yes/No list */
   .opp-row {
     display: flex;
@@ -714,13 +780,30 @@
         <div class="accordion-body">
           <div class="divider"></div>
 
-          <div class="field">
+          <div class="field" id="empEmailField">
             <label>Employee Email <span class="req">*</span></label>
-            <div class="email-suffix-wrap">
-              <input id="empEmail" type="text" placeholder="enter local part of email" />
-              <span class="email-suffix">@blufoxmobile.com</span>
+
+            <!-- State 1: before an employee is picked -->
+            <div id="empEmailPlaceholder" class="hint">Select an employee above to load their email from the Admin Panel.</div>
+
+            <!-- State 2: email found in Admin Panel → locked, read-only -->
+            <div id="empEmailAuto" style="display:none">
+              <div class="email-locked">
+                <span class="lock-badge">🔒 Admin Panel</span>
+                <span class="lock-value" id="empEmailAutoValue"></span>
+              </div>
+              <div class="hint lock-src">Pulled automatically from the <a href="https://blufoxmobile.github.io/Admin-Panel-Directory/" target="_blank" rel="noopener">Admin Panel Directory</a> — the scorecard is sent here. Wrong address? Fix it once in the Admin Panel and it updates everywhere.</div>
             </div>
-            <div class="hint">Type the local part of the rep's address. The scorecard is sent here.</div>
+
+            <!-- State 3: no email on file for this rep → manual entry -->
+            <div id="empEmailManual" style="display:none">
+              <div class="email-suffix-wrap">
+                <input id="empEmail" type="text" placeholder="enter local part of email" />
+                <span class="email-suffix">@blufoxmobile.com</span>
+              </div>
+              <div class="hint hint-warn" id="empEmailManualHint">⚠ No email on file for this rep in the Admin Panel — enter it manually. Add them in the <a href="https://blufoxmobile.github.io/Admin-Panel-Directory/" target="_blank" rel="noopener">Admin Panel</a> so it auto-fills next time.</div>
+              <div id="empEmailSuggest" class="email-suggest" style="display:none"></div>
+            </div>
           </div>
 
           <div class="row-2">
@@ -1033,6 +1116,153 @@ function normalizeEmpEmail(raw) {
   // Strip any other @domain (manager typed an outside address by mistake)
   v = v.replace(/@.*$/, '');
   return v ? v + '@blufoxmobile.com' : '';
+}
+
+/* ================= Employee email — Admin Panel linkage =================
+   Emails come from storeEmployees in store-directory.json (maintained on the
+   Admin Panel Directory). We match the selected rep to that store's roster:
+     • exact name (or name minus a Jr/Sr/II/III suffix) → auto-fill + LOCK
+     • otherwise, if a close name is on file → offer it as a suggestion
+     • otherwise → manual entry
+   We never silently send to a guessed address. */
+
+// Normalize a name for comparison: lowercase, strip accents & punctuation,
+// collapse whitespace. "Williams Perez-Arellano" → "williams perezarellano".
+function normName(s) {
+  return (s || '')
+    .toString()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')   // drop combining accents
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, '')          // keep letters + spaces only
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+// Drop a trailing generational suffix so "daniel mitchell jr" == "daniel mitchell".
+function stripNameSuffix(n) {
+  return n.replace(/\s+(jr|sr|ii|iii|iv|v)$/i, '').trim();
+}
+// Tiny edit-distance for first-name near-matches (Jaime vs Jamie, Stefen vs Stefan).
+function editDistance(a, b) {
+  const m = a.length, n = b.length;
+  if (Math.abs(m - n) > 2) return 99;
+  const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+  return dp[m][n];
+}
+// Build the roster (from storeEmployees) for a given store name, normalized.
+function rosterForStore(store) {
+  const dir = STATE.directory;
+  const raw = (dir && dir.storeEmployees && dir.storeEmployees[store]) || [];
+  return raw.map(e => {
+    const first = (e && (e.first || e.firstName)) || '';
+    const last  = (e && (e.last  || e.lastName )) || '';
+    const email = (e && typeof e === 'object') ? (e.email || '') : String(e || '');
+    const full  = normName(first + ' ' + last) || normName(email.split('@')[0]);
+    return {
+      email: (email || '').trim(),
+      first: normName(first),
+      last:  normName(last),
+      full
+    };
+  }).filter(r => r.email);
+}
+// Resolve an email for a rep at a store.
+// Returns { mode:'exact', email } | { mode:'suggest', email, name } | { mode:'none' }.
+function resolveEmpEmail(store, repName) {
+  const roster = rosterForStore(store);
+  if (!roster.length) return { mode: 'none' };
+  const target = normName(repName);
+  const targetNoSuffix = stripNameSuffix(target);
+
+  // 1) Exact full-name match (with suffix tolerance) — high confidence, lock it.
+  for (const r of roster) {
+    if (r.full === target || stripNameSuffix(r.full) === targetNoSuffix) {
+      return { mode: 'exact', email: r.email };
+    }
+  }
+
+  // 2) Close match — same last name AND first name within a tiny edit distance,
+  //    and it must be the ONLY such candidate at this store. Suggest, never auto-send.
+  const tParts = targetNoSuffix.split(' ');
+  const tLast = tParts.length > 1 ? tParts[tParts.length - 1] : '';
+  const tFirst = tParts[0] || '';
+  if (tLast) {
+    const close = roster.filter(r =>
+      r.last && r.last === tLast && r.first &&
+      (r.first === tFirst || editDistance(r.first, tFirst) <= 2 ||
+       r.first.startsWith(tFirst) || tFirst.startsWith(r.first))
+    );
+    if (close.length === 1) {
+      const c = close[0];
+      const nm = (c.first + ' ' + c.last).replace(/\b\w/g, ch => ch.toUpperCase());
+      return { mode: 'suggest', email: c.email, name: nm };
+    }
+  }
+
+  return { mode: 'none' };
+}
+
+// Show/populate the correct email UI state for the current rep.
+function applyEmpEmailUI(store, repName) {
+  const ph = $('empEmailPlaceholder');
+  const auto = $('empEmailAuto');
+  const manual = $('empEmailManual');
+  const suggest = $('empEmailSuggest');
+  const input = $('empEmail');
+
+  // Reset
+  STATE.resolvedEmpEmail = '';
+  if (input) input.value = '';
+  if (suggest) { suggest.style.display = 'none'; suggest.innerHTML = ''; }
+
+  if (!repName) {
+    ph.style.display = 'block';
+    auto.style.display = 'none';
+    manual.style.display = 'none';
+    return;
+  }
+
+  const res = resolveEmpEmail(store, repName);
+  ph.style.display = 'none';
+
+  if (res.mode === 'exact') {
+    STATE.resolvedEmpEmail = res.email;
+    $('empEmailAutoValue').textContent = res.email;
+    auto.style.display = 'block';
+    manual.style.display = 'none';
+    return;
+  }
+
+  // 'suggest' or 'none' → manual entry
+  auto.style.display = 'none';
+  manual.style.display = 'block';
+  if (res.mode === 'suggest') {
+    suggest.innerHTML =
+      'Closest match on file: <b>' + res.email + '</b> for <b>' + res.name +
+      '</b>. Verify it’s the same person, then ' +
+      '<button type="button" id="btnUseSuggest">Use this email</button>';
+    suggest.style.display = 'flex';
+    const btn = document.getElementById('btnUseSuggest');
+    if (btn) btn.addEventListener('click', () => {
+      input.value = res.email.split('@')[0]; // suffix span appends @blufoxmobile.com
+      suggest.style.display = 'none';
+      input.focus();
+    });
+  }
+}
+
+// The address the scorecard is actually sent to. Prefers the locked Admin value.
+function getEmpEmailForSend() {
+  if (STATE.resolvedEmpEmail) return STATE.resolvedEmpEmail.trim().toLowerCase();
+  return normalizeEmpEmail($('empEmail').value);
 }
 
 /* ---------- helpers ---------- */
@@ -1410,6 +1640,7 @@ function computeGoals(rep) {
 function clearMTDFields() {
   ['empEmail','empNPS','empTSheets','empXM','empRGUs','empWatchTab','empAccDollars','empInternet','empTriples','empQuads','overallGrade','companyRank']
     .forEach(id => $(id).value = '');
+  applyEmpEmailUI(null, null); // reset email field to its placeholder state
   clearOpportunities();
 }
 
@@ -1429,10 +1660,10 @@ function onEmployeeChange() {
     $('empNPS').value = rep.nps; // pre-fill, manager can override
   }
 
-  // Employee email is NOT auto-filled — too many name→address mismatches.
-  // Manager types it manually each time. Clear any leftover value from a
-  // previous selection so the wrong address can't carry over.
-  $('empEmail').value = '';
+  // Employee email is pulled from the Admin Panel Directory (storeEmployees).
+  // Exact roster match → locked auto-fill; close match → suggestion; otherwise
+  // manual entry. This replaces the old always-manual behavior.
+  applyEmpEmailUI(STATE.selectedStore, rep.name);
 
   // Auto-pull T-Sheets MTD from the live submissions feed. Match is
   // (full store name) | (rep name) — both should match exactly with the
@@ -2364,11 +2595,12 @@ async function onSubmit() {
     // Managers can still hit "Download PDF" if they want a local copy.
     const grade = STATE.gradeForReport || $('overallGrade').value || 'C';
     const total = STATE.reps.length;
-    // Manager-typed employee email, normalized to @blufoxmobile.com.
-    // No auto-guess: we'd rather refuse to send than send to the wrong rep.
-    const empEmail = normalizeEmpEmail($('empEmail').value);
+    // Employee email: the locked value pulled from the Admin Panel when we have
+    // an exact roster match, otherwise the manually entered address. No silent
+    // guessing — we'd rather refuse to send than send to the wrong rep.
+    const empEmail = getEmpEmailForSend();
     if (!empEmail) {
-      setStatus($('submitStatus'), 'Please fill in the Employee Email field before sending.', 'error');
+      setStatus($('submitStatus'), 'No employee email set. Pick the employee (auto-fills from the Admin Panel) or enter the address manually before sending.', 'error');
       btn.disabled = false; btn.textContent = '📧 Submit & Email';
       return;
     }
