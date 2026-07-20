@@ -625,6 +625,13 @@
   .gp-bar-fill.hit  { background: linear-gradient(90deg, #21c46c, #5dd58c); }
   .gp-bar-fill.close{ background: linear-gradient(90deg, #f6a01b, #ffc04f); }
   .gp-bar-fill.miss { background: linear-gradient(90deg, #e23b3b, #ff7361); }
+  /* "Pace to date" marker — where they should be right now on the bar. */
+  .gp-pace-mark {
+    position: absolute; top: -2px; bottom: -2px; width: 2px;
+    background: #0a2a52; transform: translateX(-1px); border-radius: 2px;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.7);
+  }
+  .sc-pace-note { font-size: 12px; color: var(--bf-text-soft); margin: 2px 0 12px; }
   .gp-status {
     display: flex;
     justify-content: space-between;
@@ -749,6 +756,9 @@
         <input id="empWatchTab" type="number" />
         <input id="empAccDollars" type="number" />
         <input id="empInternet" type="number" />
+        <input id="empNPS" type="number" />
+        <input id="empTriples" type="number" />
+        <input id="empQuads" type="number" />
         <input id="companyRank" type="text" />
         <select id="overallGrade">
           <option value=""></option>
@@ -806,38 +816,16 @@
             </div>
           </div>
 
-          <div class="row-2">
-            <div class="field">
-              <label>Employee NPS</label>
-              <input id="empNPS" type="number" step="0.01" placeholder="e.g., 75" />
-            </div>
-            <div class="field">
-              <label>Total T-Sheets MTD</label>
-              <input id="empTSheets" type="number" placeholder="auto-pulled live" />
-              <div class="hint" id="tsheetsHint">Auto-pulled from the live T-Sheet feed. Edit if you need to override.</div>
-            </div>
+          <div class="field">
+            <label>Total T-Sheets MTD</label>
+            <input id="empTSheets" type="number" placeholder="auto-pulled live" />
+            <div class="hint" id="tsheetsHint">Auto-pulled from the live T-Sheet feed. Edit only if you need to override.</div>
           </div>
 
-          <div class="row-2">
-            <div class="field">
-              <label>Total Triple Plays MTD</label>
-              <input id="empTriples" type="number" placeholder="e.g., 4" />
-            </div>
-            <div class="field">
-              <label>Total Quad Plays MTD</label>
-              <input id="empQuads" type="number" placeholder="e.g., 1" />
-            </div>
+          <div class="hint" style="margin-top:12px;opacity:.85">
+            Everything else — mobile, watches, tablets, RGU, GP, accessories, and NPS — is pulled automatically
+            from the Sales Report, the Monthly Target Planner, and Medallia. Nothing to check off.
           </div>
-        </div>
-      </div>
-
-      <!-- Employee Opportunities — Yes/No checklist -->
-      <div class="accordion open" data-acc="opportunities">
-        <div class="accordion-header"><span>Employee Opportunities (Yes / No):</span><span class="chev">▼</span></div>
-        <div class="accordion-body">
-          <p class="accordion-subtitle">Mark each item as you observed it during this coaching period.</p>
-          <div class="divider"></div>
-          <div id="opportunitiesList"></div>
         </div>
       </div>
 
@@ -934,6 +922,7 @@
 
       <div class="sc-card">
         <h3>Monthly Goals</h3>
+        <div class="sc-pace-note" id="scPaceNote"></div>
         <div class="goal-progress-list" id="scGoalProgressList"></div>
       </div>
 
@@ -962,10 +951,8 @@
           <div class="sc-kv"><span class="k">vs. company avg store NPS</span><span class="v" id="scEmpNPSDelta">—</span></div>
         </div>
         <div class="sc-card">
-          <h3>Manual Metrics &amp; Store Context</h3>
+          <h3>Store Context</h3>
           <div class="sc-kv"><span class="k">T-Sheets MTD</span><span class="v" id="scTSheets">—</span></div>
-          <div class="sc-kv"><span class="k">Triple Plays MTD</span><span class="v" id="scTriples">—</span></div>
-          <div class="sc-kv"><span class="k">Quad Plays MTD</span><span class="v" id="scQuads">—</span></div>
           <div style="border-top:1px solid #eaf0fa; margin:10px 0;"></div>
           <div class="sc-kv"><span class="k">Store</span><span class="v" id="scStore2">—</span></div>
           <div class="sc-kv"><span class="k">Store Manager</span><span class="v" id="scStoreMgr">—</span></div>
@@ -995,9 +982,8 @@
           <div class="sc-kv"><span class="k">XM Needed</span><span class="v" id="scXMNeeded">—</span></div>
           <div class="sc-kv"><span class="k">RGUs Needed</span><span class="v" id="scRGUsNeeded">—</span></div>
           <div class="sc-kv"><span class="k">Watches/Tablets Needed</span><span class="v" id="scWatchTabNeeded">—</span></div>
+          <div class="sc-kv"><span class="k">GP Needed</span><span class="v" id="scGPNeeded">—</span></div>
           <div class="sc-kv"><span class="k">Accessories Needed</span><span class="v" id="scAccNeeded">—</span></div>
-          <div class="sc-kv"><span class="k">TP Percentage</span><span class="v" id="scTPPct">—</span></div>
-          <div class="sc-kv"><span class="k">QP Percentage</span><span class="v" id="scQPPct">—</span></div>
           <div class="sc-kv"><span class="k">T-Sheets Needed</span><span class="v" id="scTSheetsNeeded">—</span></div>
         </div>
         <div class="sc-card">
@@ -1040,6 +1026,10 @@ const CONFIG = {
   // GitHub commits API → "when was the sales report last uploaded?"
   SALES_REPORT_COMMITS_URL: 'https://api.github.com/repos/BlufoxMobile/Daily-Sales-Report/commits?path=data/Sales%20Report.xlsx&per_page=1',
   SHOPPERTRACK_URL:    'https://raw.githubusercontent.com/BlufoxMobile/Daily-Sales-Report/main/data/shoppertrack.xlsx',
+  // Monthly Target Planner → locked beginning-of-month targets per store (XM @7%, RGU, W/T, T-sheet, accessory, GP).
+  TARGET_SUMMARY_URL:  'https://raw.githubusercontent.com/BlufoxMobile/Daily-Sales-Report/main/data/target-summary.json',
+  // NPS Index (Medallia) → official per-employee tNPS, month-to-date.
+  NPS_MTD_URL:         'https://raw.githubusercontent.com/BlufoxMobile/Daily-Sales-Report/main/data/nps-mtd.json',
   // T-Sheet Submissions — Google Apps Script web app behind the
   // blufoxmobile.github.io/T-Sheet-Submissions/ page. Returns all submissions.
   TSHEET_SCRIPT_URL:   'https://script.google.com/macros/s/AKfycbyQaa1yvggLJuw5dcme74vwAW3hSB3BvzCK40IhLThy-F8KZDFOF6gcyl8psNMd3yD-Cg/exec',
@@ -1065,47 +1055,23 @@ const STATE = {
   rankingForReport: null,  // computed National Ranking rows
   actionsForReport: null,  // computed Action Items
   gradeForReport: null,
+  targets: {},        // { 'Bourbonnais': {..., targets:{store,rep,...}} } from target-summary.json
+  targetsMonth: null, // { month, year } the locked targets were set for
+  empNPS: {},         // { normalized 'first last': tnps } — official Medallia MTD per employee
+  storeNPSMedallia: {}, // { 'Bourbonnais': tnps } — Medallia store-level MTD (fallback)
 };
+
+// === Employee Opportunities checklist — REMOVED in the rebuild ===
+// The manual Yes/No checklist was cut to keep the card simple. The array is
+// left empty so any legacy loops render nothing instead of throwing.
 
 // === Employee Opportunities — Yes/No checklist ===
 // Order matters; this is the order displayed in the form and the scorecard.
-const OPPORTUNITIES = [
-  { id: 'oppInternet',    label: 'Can present Internet Quote Sheet properly' },
-  { id: 'oppMobile',      label: 'Can present Mobile Quote Sheets properly' },
-  { id: 'oppUpgrade',     label: 'Can present upgrade quote sheets properly' },
-  { id: 'oppBundle',      label: 'Can present bundle quote sheets properly' },
-  { id: 'oppUniform',     label: 'Employee is always in uniform' },
-  { id: 'oppNameTag',     label: 'Employee wears name tag daily' },
-  { id: 'oppPunctual',    label: 'Employee shows up punctually for each shift' },
-  { id: 'oppPitchesAll',  label: 'Employee pitches to every customer, every time' },
-  { id: 'oppPitchesNPS',  label: 'Employee pitches NPS survey to every customer' },
-];
+const OPPORTUNITIES = []; // removed — see note above
 
-function renderOpportunities() {
-  const root = $('opportunitiesList');
-  root.innerHTML = OPPORTUNITIES.map(o => `
-    <div class="opp-row">
-      <span class="opp-label">${o.label}</span>
-      <span class="opp-radios">
-        <label><input type="radio" name="${o.id}" value="yes">Yes</label>
-        <label><input type="radio" name="${o.id}" value="no">No</label>
-      </span>
-    </div>
-  `).join('');
-}
-function readOpportunities() {
-  const out = {};
-  OPPORTUNITIES.forEach(o => {
-    const el = document.querySelector(`input[name="${o.id}"]:checked`);
-    out[o.id] = el ? el.value : null;   // 'yes' | 'no' | null
-  });
-  return out;
-}
-function clearOpportunities() {
-  OPPORTUNITIES.forEach(o => {
-    document.querySelectorAll(`input[name="${o.id}"]`).forEach(r => { r.checked = false; });
-  });
-}
+function renderOpportunities() { /* removed */ }
+function readOpportunities() { return {}; }
+function clearOpportunities() { /* removed */ }
 
 // Normalize the email input value into a full @blufoxmobile.com address.
 function normalizeEmpEmail(raw) {
@@ -1325,7 +1291,7 @@ document.querySelectorAll('.accordion-header').forEach(h => {
 /* ---------- DATA LOADING ---------- */
 async function loadAll() {
   try {
-    const [dir, salesBuf, stBuf, salesCommits, tsheetData] = await Promise.all([
+    const [dir, salesBuf, stBuf, salesCommits, tsheetData, targetSummary, npsMtd] = await Promise.all([
       fetch(CONFIG.STORE_DIRECTORY_URL + '?cb=' + Date.now()).then(r => r.json()),
       fetch(CONFIG.SALES_REPORT_URL + '?cb=' + Date.now()).then(r => r.arrayBuffer()),
       fetch(CONFIG.SHOPPERTRACK_URL + '?cb=' + Date.now()).then(r => r.arrayBuffer()),
@@ -1333,6 +1299,10 @@ async function loadAll() {
       fetch(CONFIG.SALES_REPORT_COMMITS_URL).then(r => r.ok ? r.json() : null).catch(() => null),
       // Live T-Sheet submissions feed (Apps Script). Soft-fails to null.
       fetch(CONFIG.TSHEET_SCRIPT_URL + '?t=' + Date.now()).then(r => r.ok ? r.json() : null).catch(() => null),
+      // Locked monthly targets from the Monthly Target Planner. Soft-fails to null.
+      fetch(CONFIG.TARGET_SUMMARY_URL + '?cb=' + Date.now()).then(r => r.ok ? r.json() : null).catch(() => null),
+      // Official per-employee NPS (Medallia). Soft-fails to null.
+      fetch(CONFIG.NPS_MTD_URL + '?cb=' + Date.now()).then(r => r.ok ? r.json() : null).catch(() => null),
     ]);
 
     STATE.directory = dir;
@@ -1342,6 +1312,8 @@ async function loadAll() {
     parseSalesReport(salesBuf);
     parseShopperTrack(stBuf);
     parseTSheets(tsheetData);
+    parseTargetSummary(targetSummary);
+    parseMedalliaNPS(npsMtd);
     populateStoreDropdown();
 
     setStatus($('loadStatus'),
@@ -1562,6 +1534,84 @@ function parseTSheets(payload) {
   STATE.tsheetsAsOf = payload.fetched_at ? new Date(payload.fetched_at) : new Date();
 }
 
+// === Locked monthly targets (target-summary.json) ===
+// Keyed by SHORT store name ("Bourbonnais"). Each record carries a `.targets`
+// block (store + rep goals) once the Planner has locked the month. We store the
+// whole record so the goal engine can fall back to gp/closeRate if `.targets`
+// is missing (e.g. an old file from before this feature).
+function parseTargetSummary(json) {
+  STATE.targets = {};
+  STATE.targetsMonth = null;
+  if (!json || !json.stores) return;
+  STATE.targetsMonth = { month: json.month || null, year: json.year || null, updatedAt: json.updatedAt || null };
+  Object.keys(json.stores).forEach(k => {
+    STATE.targets[k] = json.stores[k];
+    STATE.targets[stripXfinity(k)] = json.stores[k]; // tolerate full-name keys too
+  });
+}
+
+// === Official per-employee NPS (nps-mtd.json, Medallia) ===
+// expressAll[] carries the clean official tNPS keyed by "Last, First" name.
+// We index it by a normalized "first last" so we can match the scorecard's rep
+// names (which are "First Last"). Also keep the store-level tNPS as a fallback.
+function parseMedalliaNPS(json) {
+  STATE.empNPS = {};
+  STATE.storeNPSMedallia = {};
+  if (!json) return;
+  const list = Array.isArray(json.expressAll) ? json.expressAll : [];
+  list.forEach(e => {
+    if (!e || e.tnps == null) return;
+    const raw = String(e.name || '');
+    // "Last, First" → "First Last"
+    let first = raw, last = '';
+    const comma = raw.indexOf(',');
+    if (comma > -1) { last = raw.slice(0, comma); first = raw.slice(comma + 1); }
+    const norm = normName(first + ' ' + last);
+    if (norm) STATE.empNPS[norm] = Number(e.tnps);
+  });
+  // Some builds also carry names inside employees{}; index those too (non-destructive).
+  if (json.employees && typeof json.employees === 'object') {
+    Object.values(json.employees).forEach(e => {
+      if (!e || e.name == null || e.officialTnps == null) return;
+      const raw = String(e.name); const comma = raw.indexOf(',');
+      const first = comma > -1 ? raw.slice(comma + 1) : raw;
+      const last  = comma > -1 ? raw.slice(0, comma) : '';
+      const norm = normName(first + ' ' + last);
+      if (norm && STATE.empNPS[norm] == null) STATE.empNPS[norm] = Number(e.officialTnps);
+    });
+  }
+  if (json.stores && typeof json.stores === 'object') {
+    Object.keys(json.stores).forEach(k => {
+      const v = json.stores[k];
+      if (v && v.tnps != null) STATE.storeNPSMedallia[k] = Number(v.tnps);
+    });
+  }
+}
+
+// Look up an employee's official Medallia NPS by name (exact, then suffix-tolerant).
+function medalliaNPSForRep(repName) {
+  if (!repName) return null;
+  const n = normName(repName);
+  if (STATE.empNPS[n] != null) return STATE.empNPS[n];
+  const ns = stripNameSuffix(n);
+  for (const k in STATE.empNPS) {
+    if (stripNameSuffix(k) === ns) return STATE.empNPS[k];
+  }
+  return null;
+}
+
+// === Month pacing ===
+// Goals are full-month; actuals are month-to-date. Pace = fraction of the month
+// elapsed (by calendar day) so "expected by today" = monthly goal × frac.
+function monthPace() {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const dayOfMonth = now.getDate();
+  const frac = Math.max(0, Math.min(1, dayOfMonth / daysInMonth));
+  return { dayOfMonth, daysInMonth, frac };
+}
+
 /* ---------- UI POPULATION ---------- */
 function populateStoreDropdown() {
   const sel = $('storeSelect');
@@ -1611,30 +1661,123 @@ function onStoreChange() {
   clearMTDFields();
 }
 
-// === GOAL MATH ===
-// Per-employee MTD goals derived from store traffic + headcount.
-//   XM (Mobile):         7%  of store traffic ÷ # reps
-//   Watches + Tablets:   2%  of store traffic ÷ # reps
-//   T-Sheet presentations: 20% of store traffic ÷ # reps
-//   RGUs:                10% of store traffic ÷ # reps
-//   Accessory dollars:   $30 × this rep's actual XM sold
+// === GOAL MATH (rebuilt) ===
+// Per-employee FULL-MONTH goals come from the locked beginning-of-month targets
+// in target-summary.json (written by the Monthly Target Planner). Mobile is
+// fixed at a 7% close rate; the other rates mirror the Planner. If a store has
+// no locked `.targets` yet (old file), we fall back to deriving them live from
+// shopper-track traffic so the card still works — flagged via `source`.
+const GOAL_RATES = { mobileCloseRate: 0.07, wtRate: 0.02, tsRate: 0.20, accPerXM: 20 };
+
 function computeGoals(rep) {
   const short = stripXfinity(STATE.selectedStore || '');
-  const st = STATE.shoppertrack[short] || {};
-  const T = Number(st.mtdTraffic) || 0;
+  const rec = STATE.targets[short] || STATE.targets[STATE.selectedStore] || null;
   const N = (STATE.repsByStore[short] || []).length || 1;
-  const xmActual = Number(rep.grossMobileSalesMTD) || 0;
+
+  // Preferred path: locked per-rep targets from the Planner.
+  if (rec && rec.targets && rec.targets.rep) {
+    const t = rec.targets;
+    return {
+      source: 'locked',
+      storeTraffic: Number(t.monthlyTraffic) || 0,
+      storeHeadcount: Number(t.reps) || N,
+      npsTarget: rec.nps != null ? Number(rec.nps) : null,
+      xm:      Number(t.rep.xm)          || 0,
+      watTab:  Number(t.rep.watchTablet) || 0,
+      tsheet:  Number(t.rep.tsheet)      || 0,
+      rgu:     Number(t.rep.rgu)         || 0,
+      gp:      Number(t.rep.gp)          || 0,
+      accessoryDollars: Number(t.rep.accessory) || 0,
+      accessoryPerXM: GOAL_RATES.accPerXM,
+      store: t.store || null,
+    };
+  }
+
+  // Fallback path: derive from live traffic (projected to a full month) using the
+  // same rates the Planner uses. Traffic here is the shopper-track MTD average
+  // projected across the month; RGU uses the store's saved close rate; GP from
+  // the saved store goal. Less exact than the locked snapshot (it drifts).
+  const st = STATE.shoppertrack[short] || {};
+  const pace = monthPace();
+  const dailyAvg = Number(st.mtdAvgTraffic) || (Number(st.mtdTraffic) ? Number(st.mtdTraffic) / Math.max(1, pace.dayOfMonth) : 0);
+  const monthlyTraffic = dailyAvg * pace.daysInMonth;
+  const gpGoal = rec && rec.gp != null ? Number(rec.gp) : 0;
+  let fcr = rec && rec.closeRate != null ? Number(rec.closeRate) : 0;
+  if (fcr > 0 && fcr <= 1) fcr *= 100;
+  const C = Math.ceil;
+  const storeXM = C(monthlyTraffic * GOAL_RATES.mobileCloseRate);
+  const storeRGU = C(monthlyTraffic * (fcr / 100));
+  const storeWT = C(monthlyTraffic * GOAL_RATES.wtRate);
+  const storeTS = C(monthlyTraffic * GOAL_RATES.tsRate);
+  const storeAcc = C(storeXM * GOAL_RATES.accPerXM);
   return {
-    storeTraffic: T,
+    source: 'derived',
+    storeTraffic: C(monthlyTraffic),
     storeHeadcount: N,
-    perEmpTraffic: T / N,
-    xm:      0.07 * T / N,
-    watTab:  0.02 * T / N,
-    tsheet:  0.20 * T / N,
-    rgu:     0.10 * T / N,
-    accessoryDollars: 30 * xmActual,
-    accessoryPerXM: 30,
+    npsTarget: rec && rec.nps != null ? Number(rec.nps) : null,
+    xm:      C(storeXM / N),
+    watTab:  C(storeWT / N),
+    tsheet:  C((monthlyTraffic / N) * GOAL_RATES.tsRate),
+    rgu:     C(storeRGU / N),
+    gp:      C(gpGoal / N),
+    accessoryDollars: C(storeAcc / N),
+    accessoryPerXM: GOAL_RATES.accPerXM,
+    store: { gp: C(gpGoal), xm: storeXM, rgu: storeRGU, watchTablet: storeWT, tsheet: storeTS, accessory: storeAcc },
   };
+}
+
+// Grade from pace-adjusted goal attainment across the scored metrics.
+// attainment = actual ÷ (goal × month-fraction). Averaged, then banded.
+// NPS is scored against its target level directly (not paced).
+function computeAttainmentGrade(goalRows) {
+  const scored = goalRows.filter(r => r.scored && r.goal > 0);
+  if (!scored.length) return { grade: '—', avg: null };
+  let sum = 0, n = 0;
+  scored.forEach(r => {
+    const denom = r.paced ? (r.pace || 0) : r.goal;
+    if (denom > 0) { sum += Math.min(1.5, r.actual / denom); n++; }
+  });
+  if (!n) return { grade: '—', avg: null };
+  const avg = sum / n; // 0..1.5, where 1.0 = exactly on pace
+  let grade;
+  if (avg >= 1.00) grade = 'A';
+  else if (avg >= 0.90) grade = 'B';
+  else if (avg >= 0.75) grade = 'C';
+  else if (avg >= 0.60) grade = 'D';
+  else grade = 'F';
+  return { grade, avg };
+}
+
+// Build the unified Goal / Pace / Actual rows for a rep. Shared by the on-screen
+// scorecard and the emailed copy so they always agree. `pace` = expected-by-today
+// (monthly goal × fraction of month elapsed). NPS is a level metric (not paced).
+function buildGoalRows(rep) {
+  const goals = computeGoals(rep);
+  const pace = monthPace();
+  const tshActual = Number($('empTSheets').value) || 0;
+  const wA = Number(rep.watchesMTD) || 0, tA = Number(rep.tabletMTD) || 0;
+  const npsActual = (STATE.empNPSInfo && STATE.empNPSInfo.value != null)
+    ? STATE.empNPSInfo.value
+    : (($('empNPS').value !== '' && $('empNPS').value != null) ? Number($('empNPS').value) : null);
+  const rows = [
+    { key:'xm',  label:'Mobile (XM)',       goal:goals.xm,     actual:Number(rep.grossMobileSalesMTD)||0, fmt:'num',   scored:true, paced:true },
+    { key:'wt',  label:'Watches + Tablets', goal:goals.watTab, actual:wA+tA,                               fmt:'num',   scored:true, paced:true, sub:`${wA} watch${wA===1?'':'es'} · ${tA} tablet${tA===1?'':'s'}` },
+    { key:'rgu', label:'RGUs',              goal:goals.rgu,    actual:Number(rep.newRGU)||0,               fmt:'num',   scored:true, paced:true },
+    { key:'gp',  label:'GP',                goal:goals.gp,     actual:Number(rep.gp)||0,                   fmt:'money', scored:true, paced:true },
+    { key:'acc', label:'Accessories',       goal:goals.accessoryDollars, actual:Number(rep.accessoryDollars)||0, fmt:'money', scored:true, paced:true },
+    { key:'ts',  label:'T-Sheets',          goal:goals.tsheet, actual:tshActual,                           fmt:'num',   scored:true, paced:true },
+    { key:'nps', label:'NPS',               goal:(goals.npsTarget!=null?goals.npsTarget:null), actual:npsActual, fmt:'nps', scored:(goals.npsTarget!=null && npsActual!=null), paced:false, npsSource:(STATE.empNPSInfo&&STATE.empNPSInfo.source) },
+  ];
+  rows.forEach(r => { r.pace = (r.paced && r.goal) ? r.goal * pace.frac : r.goal; });
+  return { goals, pace, rows };
+}
+
+// Format a goal/actual value for display by metric type.
+function fmtGoalVal(v, fmt) {
+  if (v == null || isNaN(v)) return '—';
+  if (fmt === 'money') return fmtMoney(v);
+  if (fmt === 'nps')   return Math.round(Number(v)) + '';
+  return fmtNum(Math.round(Number(v)), 0);
 }
 
 function clearMTDFields() {
@@ -1656,9 +1799,16 @@ function onEmployeeChange() {
   $('empWatchTab').value   = (Number(rep.watchesMTD || 0) + Number(rep.tabletMTD || 0));
   $('empAccDollars').value = rep.accessoryDollars != null ? Number(rep.accessoryDollars).toFixed(2) : '';
   $('empInternet').value   = rep.hsi ?? '';
-  if (rep.nps != null && $('empNPS').value === '') {
-    $('empNPS').value = rep.nps; // pre-fill, manager can override
-  }
+  // Employee NPS now comes from Medallia (official MTD tNPS) — no manual entry.
+  // Fall back to the store's Medallia NPS, then the Sales Report fiscal NPS.
+  const short0 = stripXfinity(STATE.selectedStore || '');
+  const medNps = medalliaNPSForRep(rep.name);
+  let npsVal = null, npsSrc = 'none';
+  if (medNps != null)                          { npsVal = medNps; npsSrc = 'employee'; }
+  else if (STATE.storeNPSMedallia[short0] != null) { npsVal = STATE.storeNPSMedallia[short0]; npsSrc = 'store'; }
+  else if (rep.nps != null)                    { npsVal = (Number(rep.nps) <= 1 ? Number(rep.nps) * 100 : Number(rep.nps)); npsSrc = 'fiscal'; }
+  $('empNPS').value = (npsVal == null ? '' : npsVal);
+  STATE.empNPSInfo = { value: npsVal, source: npsSrc };
 
   // Employee email is pulled from the Admin Panel Directory (storeEmployees).
   // Exact roster match → locked auto-fill; close match → suggestion; otherwise
@@ -1764,8 +1914,16 @@ function onGenerate() {
   clearStatus($('submitStatus'));
 
   const store = STATE.selectedStore;
-  const grade = $('overallGrade').value || autoGrade(rep) || 'C';
+  const short = stripXfinity(store);
+
+  // Goals + pace-adjusted grade come first — the grade drives the header/badge.
+  const { goals, pace, rows: goalRows } = buildGoalRows(rep);
+  STATE.goalsForReport = goalRows;
+  const gradeInfo = computeAttainmentGrade(goalRows);
+  const grade = gradeInfo.grade && gradeInfo.grade !== '—' ? gradeInfo.grade : 'C';
   STATE.gradeForReport = grade;
+  STATE.gradeAvgForReport = gradeInfo.avg;
+  $('overallGrade').value = grade;
 
   // Header
   $('scHeaderTitle').textContent = `${rep.name} — ${grade}`;
@@ -1781,7 +1939,6 @@ function onGenerate() {
   $('scStore').textContent = store;
   $('scHire').textContent = fmtHire(rep.hireDate);
   $('scHours').textContent = rep.hours != null ? Number(rep.hours).toFixed(1) : '—';
-  const short = stripXfinity(store);
 
   // Headline banner: National Rank (left) + Estimated Blended Wage (right).
   // Only show if we have at least one of the two pieces of info.
@@ -1821,58 +1978,60 @@ function onGenerate() {
   const total = STATE.reps.length;
   const pct = rep.rank ? rep.rank / total : null;
   $('scRank').textContent = rep.rank ? `#${rep.rank} of ${total}` : '—';
-  $('scPct').textContent  = pct ? `Top ${(pct * 100).toFixed(1)}%` : '—';
+  $('scPct').textContent  = rep.rank ? rankLabel(rep.rank, total).label : '—';
   $('scPctFill').style.width = pct ? ((1 - pct) * 100).toFixed(1) + '%' : '0%';
   $('scTotalScore').textContent = rep.totalScore != null ? Number(rep.totalScore).toFixed(1) : '—';
   $('scGPHr').textContent = rep.gpPerHr != null ? fmtMoney(rep.gpPerHr) : '—';
 
-  // ---------- Goal Tracking table ----------
-  const goals = computeGoals(rep);
-  const tshActual = Number($('empTSheets').value) || 0;
-  const goalRows = [
-    { label: 'XM (Mobile)',         goal: goals.xm,     actual: Number(rep.grossMobileSalesMTD) || 0, fmt: 'num' },
-    { label: 'Watches + Tablets',   goal: goals.watTab, actual: (Number(rep.watchesMTD)||0) + (Number(rep.tabletMTD)||0), fmt: 'num' },
-    { label: 'T-Sheets',            goal: goals.tsheet, actual: tshActual, fmt: 'num' },
-    { label: 'RGUs',                goal: goals.rgu,    actual: Number(rep.newRGU) || 0, fmt: 'num' },
-    { label: 'Accessories',         goal: goals.accessoryDollars, actual: Number(rep.accessoryDollars) || 0, fmt: 'money' },
-  ];
-  STATE.goalsForReport = goalRows;
+  // ---------- Goal Tracking (Goal / Pace / Actual) ----------
+  // `goals` and `goalRows` were built at the top of onGenerate. Each row shows
+  // the full-month GOAL, the pace ("expected by today"), and the ACTUAL, with a
+  // status judged against pace (are they keeping up?), not the full month.
+  const paceNote = goals.source === 'locked'
+    ? `Targets locked ${STATE.targetsMonth && STATE.targetsMonth.month ? 'for ' + STATE.targetsMonth.month + ' ' + (STATE.targetsMonth.year||'') : 'at month start'} · Day ${pace.dayOfMonth} of ${pace.daysInMonth} (${Math.round(pace.frac*100)}% through the month)`
+    : `Targets estimated from live traffic (Planner not locked yet) · Day ${pace.dayOfMonth} of ${pace.daysInMonth}`;
+  const paceEl = $('scPaceNote'); if (paceEl) paceEl.textContent = paceNote;
 
-  // Render Goal Tracking as vertical progress-bar cards
   const goalHost = $('scGoalProgressList');
   goalHost.innerHTML = '';
   goalRows.forEach(r => {
-    const goalFmt = r.fmt === 'money' ? fmtMoney(r.goal) : fmtNum(r.goal, 0);
-    const actFmt  = r.fmt === 'money' ? fmtMoney(r.actual) : fmtNum(r.actual, 0);
-    const pct = r.goal ? Math.min(1.5, r.actual / r.goal) : 0; // cap bar at 150%
-    const pctRaw = r.goal ? (r.actual / r.goal) : 0;
-    const cls = pctRaw >= 1 ? 'hit' : (pctRaw >= 0.75 ? 'close' : 'miss');
-    const fillWidth = Math.min(100, pct * 100 / 1.0); // bar visualizes 0–100%; overflow shown via "hit"
-    const gap = r.goal - r.actual;
+    const goalFmt = fmtGoalVal(r.goal, r.fmt);
+    const actFmt  = r.actual == null ? '—' : fmtGoalVal(r.actual, r.fmt);
+    const denom = r.paced ? (r.pace || 0) : (r.goal || 0);
+    const attain = denom > 0 && r.actual != null ? r.actual / denom : null; // vs pace (or level target)
+    const cls = attain == null ? 'miss' : (attain >= 1 ? 'hit' : (attain >= 0.8 ? 'close' : 'miss'));
+    // Progress bar visualizes actual vs FULL-month goal (with a pace marker).
+    const fullPct = r.goal ? Math.min(100, Math.max(0, (r.actual / r.goal) * 100)) : 0;
+    const paceMark = (r.paced && r.goal) ? Math.min(100, pace.frac * 100) : 100;
+
     let msg, msgCls;
-    if (pctRaw >= 1) {
-      const over = r.actual - r.goal;
-      msg = r.fmt === 'money'
-        ? `${fmtMoney(over)} over goal!`
-        : `${fmtNum(Math.round(over))} over goal!`;
+    if (attain == null) { msg = r.key === 'nps' ? 'No NPS on file yet' : 'No target set'; msgCls = 'gap'; }
+    else if (attain >= 1) {
+      if (r.key === 'nps') { msg = `${fmtGoalVal(r.actual,'nps')} vs ${fmtGoalVal(r.goal,'nps')} target ✓`; }
+      else { const over = r.actual - denom; msg = `on pace · ${r.fmt==='money'?fmtMoney(over):fmtNum(Math.round(over))} ahead`; }
       msgCls = 'win';
     } else {
-      msg = r.fmt === 'money'
-        ? `${fmtMoney(gap)} short of goal`
-        : `${fmtNum(Math.ceil(gap))} more to hit goal`;
+      const behind = denom - r.actual;
+      if (r.key === 'nps') { msg = `${fmtGoalVal(r.actual,'nps')} vs ${fmtGoalVal(r.goal,'nps')} target`; }
+      else { msg = `${r.fmt==='money'?fmtMoney(behind):fmtNum(Math.ceil(behind))} behind pace`; }
       msgCls = 'gap';
     }
+    const paceStr = r.paced ? fmtGoalVal(r.pace, r.fmt) : '—';
+    const subStr = r.sub ? ` · <span style="opacity:.6">${r.sub}</span>` : (r.key==='nps' && r.npsSource ? ` · <span style="opacity:.6">${r.npsSource==='employee'?'Medallia (individual)':r.npsSource==='store'?'store NPS (no individual)':'fiscal NPS'}</span>` : '');
     const node = document.createElement('div');
     node.className = 'goal-progress-row';
     node.innerHTML = `
       <div class="gp-head">
-        <div class="gp-label">${r.label}</div>
-        <div class="gp-numbers"><span class="actual">${actFmt}</span> <span style="opacity:.7">/ ${goalFmt}</span></div>
+        <div class="gp-label">${r.label}${subStr}</div>
+        <div class="gp-numbers"><span class="actual">${actFmt}</span> <span style="opacity:.6">/ ${goalFmt} goal</span></div>
       </div>
-      <div class="gp-bar-track"><div class="gp-bar-fill ${cls}" style="width:${fillWidth.toFixed(1)}%"></div></div>
+      <div class="gp-bar-track">
+        <div class="gp-bar-fill ${cls}" style="width:${fullPct.toFixed(1)}%"></div>
+        ${r.paced ? `<div class="gp-pace-mark" style="left:${paceMark.toFixed(1)}%" title="Pace to date"></div>` : ''}
+      </div>
       <div class="gp-status">
-        <span class="pct ${cls}">${(pctRaw * 100).toFixed(0)}%${pctRaw >= 1 ? ' ✓' : ''}</span>
-        <span class="msg ${msgCls}">${msg}</span>
+        <span class="pct ${cls}">${attain==null?'—':(attain*100).toFixed(0)+'%'}${attain>=1?' ✓':''}</span>
+        <span class="msg ${msgCls}">${msg}${r.paced?` <span style="opacity:.55">(pace ${paceStr})</span>`:''}</span>
       </div>
     `;
     goalHost.appendChild(node);
@@ -1900,79 +2059,67 @@ function onGenerate() {
     rankTbody.appendChild(tr);
   });
 
-  // ---------- NPS card: store-level + employee-level ----------
-  const storeNPS = STATE.storeNPS[short];
+  // ---------- NPS card: employee (Medallia) vs store target ----------
+  const npsInfo = STATE.empNPSInfo || { value: null, source: 'none' };
+  const npsTarget = goals.npsTarget;
+  const storeMedNps = STATE.storeNPSMedallia[short];
   const npsStats = STATE.storeNPSStats || {};
-  $('scStoreNPS').textContent    = storeNPS != null ? fmtPct(storeNPS, 0) : '—';
-  $('scStoreNPSAvg').textContent = npsStats.avg != null ? fmtPct(npsStats.avg, 1) : '—';
+  if ($('scStoreNPS'))    $('scStoreNPS').textContent = (npsTarget != null) ? ('target ' + Math.round(npsTarget)) : (storeMedNps != null ? Math.round(storeMedNps) + '' : '—');
+  if ($('scStoreNPSAvg')) $('scStoreNPSAvg').textContent = storeMedNps != null ? Math.round(storeMedNps) + '' : (npsStats.avg != null ? fmtPct(npsStats.avg, 1) : '—');
   const storeRank = (npsStats.rankOf ? npsStats.rankOf(short) : null);
   const storeRankLab = storeRank ? rankLabel(storeRank, npsStats.total) : null;
-  $('scStoreNPSRank').innerHTML = storeRank
+  if ($('scStoreNPSRank')) $('scStoreNPSRank').innerHTML = storeRank
     ? `#${storeRank} of ${npsStats.total} <span class="rank-pill ${storeRankLab.cls}">${storeRankLab.label}</span>`
     : '—';
-  const empNps = $('empNPS').value;
-  $('scEmpNPS').textContent = empNps ? (Number(empNps) > 1 ? empNps + '%' : fmtPct(Number(empNps), 0)) : '—';
-  if (empNps && npsStats.avg != null) {
-    const empNum = Number(empNps);
-    const empPct = empNum > 1 ? empNum / 100 : empNum;
-    const delta = empPct - npsStats.avg;
-    const sign = delta >= 0 ? '+' : '';
-    $('scEmpNPSDelta').innerHTML = `${sign}${(delta * 100).toFixed(1)} pts ${delta >= 0 ? '<span class="gap-pos">above</span>' : '<span class="gap-neg">below</span>'} company avg`;
-  } else {
-    $('scEmpNPSDelta').textContent = empNps ? 'company benchmark unavailable' : '—';
+  if ($('scEmpNPS')) $('scEmpNPS').textContent = npsInfo.value != null ? Math.round(npsInfo.value) + '' : '—';
+  if ($('scEmpNPSDelta')) {
+    if (npsInfo.value != null && npsTarget != null) {
+      const delta = npsInfo.value - npsTarget;
+      const sign = delta >= 0 ? '+' : '';
+      const srcLbl = npsInfo.source === 'store' ? ' (store NPS — no individual score)' : (npsInfo.source === 'fiscal' ? ' (fiscal NPS)' : '');
+      $('scEmpNPSDelta').innerHTML = `${sign}${delta.toFixed(0)} pts ${delta >= 0 ? '<span class="gap-pos">above</span>' : '<span class="gap-neg">below</span>'} target${srcLbl}`;
+    } else {
+      $('scEmpNPSDelta').textContent = npsInfo.value != null ? 'no store NPS target set' : 'no NPS on file yet';
+    }
   }
 
-  // Manual metrics + store context
-  $('scTSheets').textContent = $('empTSheets').value || '—';
-  $('scTriples').textContent = $('empTriples').value || '—';
-  $('scQuads').textContent   = $('empQuads').value || '—';
-  $('scStore2').textContent  = store;
-  $('scStoreMgr').textContent = $('storeMgrName').value || '—';
-  $('scTrafficMTD').textContent = goals.storeTraffic ? fmtNum(goals.storeTraffic) : '—';
-  $('scTraffic').textContent = $('dailyShopperTrack').value ? fmtNum($('dailyShopperTrack').value, 1) : '—';
-  $('scStaff').textContent   = $('numEmployees').value || '—';
+  // Store context
+  const tshActual = Number($('empTSheets').value) || 0;
+  if ($('scTSheets'))    $('scTSheets').textContent = $('empTSheets').value || '—';
+  if ($('scStore2'))     $('scStore2').textContent  = store;
+  if ($('scStoreMgr'))   $('scStoreMgr').textContent = $('storeMgrName').value || '—';
+  const stMtd = (STATE.shoppertrack[short] || {}).mtdTraffic;
+  if ($('scTrafficMTD')) $('scTrafficMTD').textContent = stMtd != null ? fmtNum(stMtd) : '—';
+  if ($('scTraffic'))    $('scTraffic').textContent = $('dailyShopperTrack').value ? fmtNum($('dailyShopperTrack').value, 1) : '—';
+  if ($('scStaff'))      $('scStaff').textContent   = $('numEmployees').value || '—';
 
-  // ---------- Action Items (computed) ----------
-  // "Needed" = max(0, goal − actual). Round up to whole units for the count
-  // items so the rep sees an integer to chase.
+  // ---------- Action Items (gap to full-month goal) ----------
   const need = (g, a) => Math.max(0, Math.ceil((Number(g) || 0) - (Number(a) || 0)));
   const moneyNeed = (g, a) => Math.max(0, ((Number(g) || 0) - (Number(a) || 0)));
-  // tshActual already declared above in the Goal Tracking block; reuse it.
-  const triplesActual = Number($('empTriples').value) || 0;
-  const quadsActual = Number($('empQuads').value) || 0;
-  const hsi = Number(rep.hsi) || 0;
-  const tpPct = hsi > 0 ? (triplesActual / hsi) * 100 : 0;
-  const qpPct = hsi > 0 ? (quadsActual / hsi) * 100 : 0;
   const actions = {
     xmNeeded:        need(goals.xm, rep.grossMobileSalesMTD),
     rgusNeeded:      need(goals.rgu, rep.newRGU),
     watchTabNeeded:  need(goals.watTab, (Number(rep.watchesMTD) || 0) + (Number(rep.tabletMTD) || 0)),
+    gpNeeded:        moneyNeed(goals.gp, rep.gp),
     accNeeded:       moneyNeed(goals.accessoryDollars, rep.accessoryDollars),
     tsheetsNeeded:   need(goals.tsheet, tshActual),
-    tpPercentage:    tpPct,
-    qpPercentage:    qpPct,
   };
   STATE.actionsForReport = actions;
-  $('scXMNeeded').textContent       = fmtNum(actions.xmNeeded);
-  $('scRGUsNeeded').textContent     = fmtNum(actions.rgusNeeded);
-  $('scWatchTabNeeded').textContent = fmtNum(actions.watchTabNeeded);
-  $('scAccNeeded').textContent      = fmtMoney(actions.accNeeded);
-  $('scTPPct').textContent          = tpPct.toFixed(1) + '%';
-  $('scQPPct').textContent          = qpPct.toFixed(1) + '%';
-  $('scTSheetsNeeded').textContent  = fmtNum(actions.tsheetsNeeded);
+  if ($('scXMNeeded'))       $('scXMNeeded').textContent       = fmtNum(actions.xmNeeded);
+  if ($('scRGUsNeeded'))     $('scRGUsNeeded').textContent     = fmtNum(actions.rgusNeeded);
+  if ($('scWatchTabNeeded')) $('scWatchTabNeeded').textContent = fmtNum(actions.watchTabNeeded);
+  if ($('scGPNeeded'))       $('scGPNeeded').textContent       = fmtMoney(actions.gpNeeded);
+  if ($('scAccNeeded'))      $('scAccNeeded').textContent      = fmtMoney(actions.accNeeded);
+  if ($('scTSheetsNeeded'))  $('scTSheetsNeeded').textContent  = fmtNum(actions.tsheetsNeeded);
 
-  // ---------- Employee Opportunities (visual checklist) ----------
-  const opps = readOpportunities();
+  // ---------- Employee Opportunities — REMOVED ----------
+  const opps = {};
   const oppHost = $('scOpportunities');
-  oppHost.innerHTML = OPPORTUNITIES.map(o => {
-    const v = opps[o.id];
-    const cls = v === 'yes' ? 'yes' : (v === 'no' ? 'no' : 'na');
-    const icon = v === 'yes' ? '✓' : (v === 'no' ? '✗' : '—');
-    return `<div class="checklist-item ${cls}">
-      <span class="checklist-icon ${cls}">${icon}</span>
-      <span class="checklist-text">${o.label}</span>
-    </div>`;
-  }).join('');
+  if (oppHost) {
+    oppHost.innerHTML = '';
+    const oppCardEl = oppHost.closest('.sc-card');
+    if (oppCardEl) oppCardEl.style.display = 'none';
+  }
 
   // ---------- Hero: Wins + Focus ----------
   renderHero(rep, goalRows, rankRows, opps);
@@ -2024,21 +2171,28 @@ function computeHero(rep, goalRows, rankRows, opps) {
   const wins = [];
   const focus = [];
 
-  // --- Goal achievements (wins) and shortfalls (focus) ---
+  // --- Goal achievements (wins) and shortfalls (focus), judged vs PACE ---
   goalRows.forEach(r => {
-    if (!r.goal) return;
-    const pct = r.actual / r.goal;
+    if (!r.goal || r.actual == null) return;
+    const denom = r.paced ? (r.pace || 0) : r.goal;
+    if (!denom) return;
+    const pct = r.actual / denom;
+    if (r.key === 'nps') {
+      if (pct >= 1) wins.push({ label: 'NPS', detail: `${Math.round(r.actual)} vs ${Math.round(r.goal)} target`, weight: pct });
+      else focus.push({ label: 'NPS', detail: `${Math.round(r.actual)} vs ${Math.round(r.goal)} target`, weight: 1 - pct });
+      return;
+    }
     if (pct >= 1) {
-      const over = r.actual - r.goal;
+      const over = r.actual - denom;
       const detail = r.fmt === 'money'
-        ? `${(pct * 100).toFixed(0)}% to goal · ${fmtMoney(over)} over`
-        : `${(pct * 100).toFixed(0)}% to goal · +${fmtNum(Math.round(over))} over`;
+        ? `on pace · ${fmtMoney(over)} ahead`
+        : `on pace · +${fmtNum(Math.round(over))} ahead`;
       wins.push({ label: r.label, detail, weight: pct });
     } else {
-      const gap = r.goal - r.actual;
+      const gap = denom - r.actual;
       const detail = r.fmt === 'money'
-        ? `${fmtMoney(gap)} short of goal`
-        : `${fmtNum(Math.ceil(gap))} more to hit goal`;
+        ? `${fmtMoney(gap)} behind pace`
+        : `${fmtNum(Math.ceil(gap))} behind pace`;
       focus.push({ label: r.label, detail, weight: 1 - pct });
     }
   });
@@ -2250,44 +2404,43 @@ function buildEmailHTML(rep, grade) {
   // status line. Bars are rendered as a 2-cell table since email clients
   // don't reliably support the gradients/rounded corners on a single div.
   const goalRowsHtml = goals.map(r => {
-    const goalFmt = r.fmt === 'money' ? fmtMoney(r.goal) : fmtNum(r.goal, 0);
-    const actFmt  = r.fmt === 'money' ? fmtMoney(r.actual) : fmtNum(r.actual, 0);
-    const pctRaw  = r.goal ? r.actual / r.goal : 0;
-    const cls     = pctRaw >= 1 ? 'hit' : (pctRaw >= 0.75 ? 'close' : 'miss');
-    const fillW   = Math.min(100, pctRaw * 100);
+    const goalFmt = fmtGoalVal(r.goal, r.fmt);
+    const actFmt  = r.actual == null ? '—' : fmtGoalVal(r.actual, r.fmt);
+    const denom   = r.paced ? (r.pace || 0) : (r.goal || 0);
+    const attain  = denom > 0 && r.actual != null ? r.actual / denom : null;
+    const cls     = attain == null ? 'miss' : (attain >= 1 ? 'hit' : (attain >= 0.8 ? 'close' : 'miss'));
+    const fullW   = r.goal ? Math.min(100, Math.max(0, (r.actual / r.goal) * 100)) : 0;
     const barColor = cls === 'hit' ? '#21c46c' : (cls === 'close' ? '#f6a01b' : '#e23b3b');
     const pctColor = cls === 'hit' ? '#136c3f' : (cls === 'close' ? '#8a5a00' : '#993300');
+    const paceStr = r.paced ? fmtGoalVal(r.pace, r.fmt) : '';
     let msg;
-    if (pctRaw >= 1) {
-      const over = r.actual - r.goal;
-      msg = r.fmt === 'money' ? `${fmtMoney(over)} over goal!` : `${fmtNum(Math.round(over))} over goal!`;
-    } else {
-      const gap = r.goal - r.actual;
-      msg = r.fmt === 'money' ? `${fmtMoney(gap)} short of goal` : `${fmtNum(Math.ceil(gap))} more to hit goal`;
-    }
+    if (attain == null) { msg = r.key === 'nps' ? 'No NPS on file yet' : 'No target set'; }
+    else if (r.key === 'nps') { msg = `${fmtGoalVal(r.actual,'nps')} vs ${fmtGoalVal(r.goal,'nps')} target${attain>=1?' ✓':''}`; }
+    else if (attain >= 1) { const over = r.actual - denom; msg = `on pace · ${r.fmt==='money'?fmtMoney(over):fmtNum(Math.round(over))} ahead`; }
+    else { const behind = denom - r.actual; msg = `${r.fmt==='money'?fmtMoney(behind):fmtNum(Math.ceil(behind))} behind pace`; }
+    const subLbl = r.sub ? ` <span style="opacity:.6;font-weight:400;">· ${esc(r.sub)}</span>` : '';
     return `
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fafcff;border:1px solid #e0eaf6;border-radius:10px;margin-bottom:10px;">
         <tr><td style="padding:12px 14px;">
           <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
             <tr>
-              <td style="font-weight:700;font-size:14px;color:#0e2742;">${esc(r.label)}</td>
+              <td style="font-weight:700;font-size:14px;color:#0e2742;">${esc(r.label)}${subLbl}</td>
               <td style="text-align:right;font-size:14px;color:#486490;font-variant-numeric:tabular-nums;">
                 <span style="font-weight:800;color:#0e2742;font-size:18px;">${actFmt}</span>
-                <span style="opacity:.7;"> / ${goalFmt}</span>
+                <span style="opacity:.7;"> / ${goalFmt} goal</span>
               </td>
             </tr>
           </table>
-          <!-- progress bar (two-cell table) -->
           <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:8px 0;height:12px;background:#eaf0fa;border-radius:999px;">
             <tr>
-              <td width="${fillW.toFixed(1)}%" style="background:${barColor};height:12px;border-radius:999px;line-height:0;font-size:0;">&nbsp;</td>
-              <td width="${(100 - fillW).toFixed(1)}%" style="line-height:0;font-size:0;">&nbsp;</td>
+              <td width="${fullW.toFixed(1)}%" style="background:${barColor};height:12px;border-radius:999px;line-height:0;font-size:0;">&nbsp;</td>
+              <td width="${(100 - fullW).toFixed(1)}%" style="line-height:0;font-size:0;">&nbsp;</td>
             </tr>
           </table>
           <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
             <tr>
-              <td style="font-weight:800;font-size:15px;color:${pctColor};font-variant-numeric:tabular-nums;">${(pctRaw * 100).toFixed(0)}%${pctRaw >= 1 ? ' ✓' : ''}</td>
-              <td style="text-align:right;font-size:13px;font-weight:600;color:${pctColor};">${esc(msg)}</td>
+              <td style="font-weight:800;font-size:15px;color:${pctColor};font-variant-numeric:tabular-nums;">${attain==null?'—':(attain*100).toFixed(0)+'%'}${attain>=1?' ✓':''}</td>
+              <td style="text-align:right;font-size:13px;font-weight:600;color:${pctColor};">${esc(msg)}${r.paced&&paceStr?` <span style="opacity:.55;font-weight:400;">(pace ${esc(paceStr)})</span>`:''}</td>
             </tr>
           </table>
         </td></tr>
@@ -2315,18 +2468,18 @@ function buildEmailHTML(rep, grade) {
 
   // === NPS comparison ===
   const storeNPS = STATE.storeNPS[short];
-  const npsStats = STATE.storeNPSStats || {};
-  const storeNPSRank = npsStats.rankOf ? npsStats.rankOf(short) : null;
-  const storeNPSBucket = storeNPSRank ? rankLabel(storeNPSRank, npsStats.total) : null;
-  const empNps = $('empNPS').value;
+  const npsRow = goals.find(r => r.key === 'nps') || {};
+  const npsTargetEmail = npsRow.goal != null ? npsRow.goal : null;
+  const empNpsVal = npsRow.actual != null ? npsRow.actual : null;
+  const storeMedNpsEmail = STATE.storeNPSMedallia[short];
+  const npsSrcEmail = (STATE.empNPSInfo && STATE.empNPSInfo.source) || 'none';
   let empNpsDelta = '—';
-  if (empNps && npsStats.avg != null) {
-    const empNum = Number(empNps);
-    const empPct = empNum > 1 ? empNum / 100 : empNum;
-    const delta = empPct - npsStats.avg;
+  if (empNpsVal != null && npsTargetEmail != null) {
+    const delta = empNpsVal - npsTargetEmail;
     const sign = delta >= 0 ? '+' : '';
     const color = delta >= 0 ? '#136c3f' : '#993300';
-    empNpsDelta = `<span style="color:${color};font-weight:700;">${sign}${(delta * 100).toFixed(1)} pts ${delta >= 0 ? 'above' : 'below'} company avg</span>`;
+    const srcLbl = npsSrcEmail === 'store' ? ' (store NPS — no individual)' : (npsSrcEmail === 'fiscal' ? ' (fiscal NPS)' : '');
+    empNpsDelta = `<span style="color:${color};font-weight:700;">${sign}${delta.toFixed(0)} pts ${delta >= 0 ? 'above' : 'below'} target${srcLbl}</span>`;
   }
 
   // === KV helpers (mirror the .sc-kv pattern from on-screen) ===
@@ -2351,29 +2504,26 @@ function buildEmailHTML(rep, grade) {
   const rankCard = cardOpen('Company Ranking') +
     `<table style="width:100%;border-collapse:collapse;">${
       kv('Overall Rank', rep.rank ? `#${rep.rank} of ${total}` : '—') +
-      kv('Percentile', pct ? `Top ${(pct * 100).toFixed(1)}%` : '—') +
+      kv('Percentile', rep.rank ? rankLabel(rep.rank, total).label : '—') +
       kv('Total Score (points)', rep.totalScore != null ? Number(rep.totalScore).toFixed(1) : '—') +
       kv('Avg GP / Hr', rep.gpPerHr != null ? fmtMoney(rep.gpPerHr) : '—')
     }</table>` + cardClose;
 
   // NPS + Store Context row
-  const npsCard = cardOpen('NPS — Store vs. Employee') +
+  const npsCard = cardOpen('NPS — Employee (Medallia) vs. Target') +
     `<table style="width:100%;border-collapse:collapse;">${
-      kv('Store NPS (from Sales Report)', storeNPS != null ? fmtPct(storeNPS, 0) : '—') +
-      kv('Company avg store NPS', npsStats.avg != null ? fmtPct(npsStats.avg, 1) : '—') +
-      kv('Your store rank', storeNPSRank ? `#${storeNPSRank} of ${npsStats.total} <span style="${pillStyle(storeNPSBucket.cls)}">${storeNPSBucket.label}</span>` : '—')
+      kv('Your NPS (Medallia MTD)', empNpsVal != null ? Math.round(empNpsVal) + '' : '—') +
+      kv('Store NPS target', npsTargetEmail != null ? Math.round(npsTargetEmail) + '' : '—') +
+      kv('vs. target', empNpsDelta)
     }</table>
     <div style="border-top:1px solid #eaf0fa;margin:8px 0;"></div>
     <table style="width:100%;border-collapse:collapse;">${
-      kv('Your personal NPS (entered)', empNps ? (Number(empNps) > 1 ? empNps + '%' : fmtPct(Number(empNps), 0)) : '—') +
-      kv('vs. company avg store NPS', empNpsDelta)
+      kv('Store NPS (Medallia MTD)', storeMedNpsEmail != null ? Math.round(storeMedNpsEmail) + '' : '—')
     }</table>` + cardClose;
 
-  const ctxCard = cardOpen('Manual Metrics & Store Context') +
+  const ctxCard = cardOpen('Store Context') +
     `<table style="width:100%;border-collapse:collapse;">${
-      kv('T-Sheets MTD', $('empTSheets').value || '—') +
-      kv('Triple Plays MTD', $('empTriples').value || '—') +
-      kv('Quad Plays MTD', $('empQuads').value || '—')
+      kv('T-Sheets MTD', $('empTSheets').value || '—')
     }</table>
     <div style="border-top:1px solid #eaf0fa;margin:8px 0;"></div>
     <table style="width:100%;border-collapse:collapse;">${
@@ -2392,39 +2542,17 @@ function buildEmailHTML(rep, grade) {
 
   // Action Items
   const a = STATE.actionsForReport || {};
-  const actionsCard = cardOpen('Action Items') +
+  const actionsCard = cardOpen('Action Items — gap to full-month goal') +
     `<table style="width:100%;border-collapse:collapse;">${
       kv('XM Needed',             fmtNum(a.xmNeeded ?? 0)) +
       kv('RGUs Needed',           fmtNum(a.rgusNeeded ?? 0)) +
       kv('Watches/Tablets Needed', fmtNum(a.watchTabNeeded ?? 0)) +
+      kv('GP Needed',             fmtMoney(a.gpNeeded ?? 0)) +
       kv('Accessories Needed',    fmtMoney(a.accNeeded ?? 0)) +
-      kv('TP Percentage',         (a.tpPercentage ?? 0).toFixed(1) + '%') +
-      kv('QP Percentage',         (a.qpPercentage ?? 0).toFixed(1) + '%') +
       kv('T-Sheets Needed',       fmtNum(a.tsheetsNeeded ?? 0))
     }</table>` + cardClose;
 
-  // Employee Opportunities — visual checklist (green ✓ / red ✗ chips)
-  const oppLineRow = (o) => {
-    const v = opps[o.id];
-    const ok = v === 'yes';
-    const no = v === 'no';
-    const bg     = ok ? '#f1fbf5' : (no ? '#fff3ed' : '#ffffff');
-    const border = ok ? '#c1eed3' : (no ? '#ffd2bd' : '#eaf0fa');
-    const iconBg = ok ? '#21c46c' : (no ? '#e23b3b' : '#c8d3e2');
-    const icon   = ok ? '✓' : (no ? '✗' : '—');
-    return `<tr><td style="padding-bottom:6px;">
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${bg};border:1px solid ${border};border-radius:8px;">
-        <tr>
-          <td width="34" style="padding:8px 0 8px 10px;">
-            <div style="width:24px;height:24px;border-radius:50%;background:${iconBg};color:#fff;font-weight:700;text-align:center;line-height:24px;font-size:14px;">${icon}</div>
-          </td>
-          <td style="padding:8px 12px 8px 8px;font-size:13.5px;color:#0e2742;">${esc(o.label)}</td>
-        </tr>
-      </table>
-    </td></tr>`;
-  };
-  const oppCard = cardOpen('Employee Opportunities') +
-    `<table style="width:100%;border-collapse:collapse;">${OPPORTUNITIES.map(oppLineRow).join('')}</table>` + cardClose;
+  // Employee Opportunities checklist — REMOVED in the rebuild.
 
   // Two-column table helper. On desktop, renders side-by-side. On mobile,
   // the `stack-col` class + the <style> block in the email head forces each
@@ -2554,8 +2682,8 @@ function buildEmailHTML(rep, grade) {
         </table>` + cardClose}
 
       ${twoCol(npsCard, ctxCard)}
-      ${twoCol(actionsCard, oppCard)}
-      ${twoCol(strengthsCard, areasCard)}
+      ${twoCol(actionsCard, strengthsCard)}
+      ${areasCard}
       ${notesCard}
 
       <!-- Signature lines -->
@@ -2646,9 +2774,14 @@ async function onSubmit() {
       goals: (STATE.goalsForReport || []).map(g => ({
         category: g.label,
         goal: g.goal,
+        pace: g.paced ? g.pace : g.goal,
         actual: g.actual,
-        pct_to_goal: g.goal ? g.actual / g.goal : null,
+        pct_to_goal: g.goal ? (g.actual / g.goal) : null,
+        pct_to_pace: (g.paced ? g.pace : g.goal) ? (g.actual / (g.paced ? g.pace : g.goal)) : null,
+        source: g.npsSource || undefined,
       })),
+      grade_attainment_avg: STATE.gradeAvgForReport != null ? STATE.gradeAvgForReport : null,
+      targets_locked_month: STATE.targetsMonth || null,
       store_nps_context: {
         store_nps: STATE.storeNPS[stripXfinity(STATE.selectedStore)],
         company_avg_store_nps: STATE.storeNPSStats && STATE.storeNPSStats.avg,
@@ -2657,10 +2790,9 @@ async function onSubmit() {
         total_stores_ranked: STATE.storeNPSStats && STATE.storeNPSStats.total,
       },
       manual_inputs: {
-        employee_personal_nps: $('empNPS').value,
+        employee_nps_medallia: $('empNPS').value,
+        nps_source: (STATE.empNPSInfo && STATE.empNPSInfo.source) || null,
         t_sheets_mtd: $('empTSheets').value,
-        triple_plays_mtd: $('empTriples').value,
-        quad_plays_mtd: $('empQuads').value,
         daily_shopper_track_avg: $('dailyShopperTrack').value,
         store_mtd_traffic: (STATE.shoppertrack[stripXfinity(STATE.selectedStore)] || {}).mtdTraffic,
         store_headcount: $('numEmployees').value,
